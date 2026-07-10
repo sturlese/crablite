@@ -256,32 +256,20 @@ admission, reminders — mocking only the network (model/transport) and hardware
 
 ---
 
-## Feature checklist
+## Features
 
-| Requirement | Status |
-|---|---|
-| Main conversational agent (loop + tools) | ✅ implemented & unit‑exercised |
-| WhatsApp as primary interface (baileys, QR) | ✅ implemented (needs a phone to link) |
-| CLI for dev/debug (`crablite chat`) | ✅ implemented & runs |
-| Pluggable skills by folder (`SKILL.md`) | ✅ implemented & verified (gating works) |
-| File‑based memory: soul, identity, user, working, long‑term | ✅ implemented & seeded |
-| Read/write/summarize/compact memory | ✅ tools + memory‑flush + budget compaction |
-| Self‑learning (dreaming promotion) | ✅ implemented & **verified end‑to‑end** |
-| Autonomous subagents (`spawn_subagent`) | ✅ implemented |
-| Proactivity: reminders + heartbeat delivery (commitments) | ✅ implemented & verified (store + tool) |
-| Startup context (recent daily notes on fresh chats) | ✅ implemented & verified |
-| Media: images (vision) + voice notes (STT) — both via Codex, no extra key | ✅ implemented |
-| Google Gmail (search/read/summarize/draft/send‑after‑confirm) | ✅ via `gog` skill |
-| Google Sheets (read/write/update) | ✅ via `gog` skill |
-| Codex OAuth only | ✅ device‑code + PKCE fallback, refresh |
-| Runs via `docker compose up` | ✅ single service + one volume |
-| Docs, examples, example skills, memory examples, deploy guide | ✅ this README + `docs/` + templates + 3 skills |
-| Test suite | ✅ Vitest, 96 tests, ~91% line coverage (≥75% enforced) |
-
-The full logic is covered by the Vitest suite (mocking network + hardware); only the live edges that
-need real credentials/hardware — the Codex login round‑trip, the streaming model turn against
-ChatGPT's servers, and the WhatsApp QR link — are exercised manually. See Troubleshooting for the one
-integration risk (the private Codex `/responses` contract).
+- A conversational agent on **WhatsApp** (baileys, QR login), with a **CLI** for development and debugging.
+- **File-based memory** you can read and edit: soul, identity, user profile, dated working notes, and a long-term `MEMORY.md` — no hidden state.
+- **Self-learning ("dreaming")**: notes you keep coming back to are promoted into long-term memory each night, with provenance and a `DREAMS.md` diary.
+- Reading, writing, searching and compacting memory straight from the conversation.
+- **Folder-based skills** (`SKILL.md`) with progressive disclosure and binary gating.
+- **Autonomous subagents** for delegated, well-scoped work.
+- **Proactivity**: scheduled reminders delivered on their own by a heartbeat, plus an optional daily check-in.
+- **Startup context**: the last couple of days of notes seeded into a fresh conversation.
+- **Inbound media**: images (vision) and voice notes (transcribed) — both through your Codex credential.
+- **Gmail & Google Sheets** via the `gog` skill, with draft → confirm → send for email.
+- **Codex (ChatGPT) OAuth** as the only model auth (device-code + PKCE, auto-refresh).
+- **Docker-first**: a single `docker compose up`.
 
 ---
 
