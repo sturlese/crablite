@@ -24,9 +24,7 @@ Google (Gmail + Sheets). One `docker compose up` and it's running.
 > *"It remembers things by writing plain Markdown files — there is no hidden state."*
 
 crablite keeps that **soul** and throws away the platform machinery. It is a few small TypeScript
-files you can read in an afternoon — not a 14,000‑file monorepo. See
-[`docs/openclaw_research.md`](docs/openclaw_research.md) for the deep study of OpenClaw and
-[`docs/lite_design.md`](docs/lite_design.md) for why every decision was made.
+files you can read in an afternoon — not a 14,000‑file monorepo.
 
 ---
 

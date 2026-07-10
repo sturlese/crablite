@@ -1,8 +1,6 @@
 # crablite — Architecture
 
-A map of the code and how a message flows through it. For *why* it looks like this, read
-[`lite_design.md`](lite_design.md); for the OpenClaw source it distills, read
-[`openclaw_research.md`](openclaw_research.md).
+A map of the code and how a message flows through it.
 
 ## Big picture
 
