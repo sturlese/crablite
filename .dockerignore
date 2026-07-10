@@ -8,3 +8,5 @@ data
 *.log
 .DS_Store
 docs/openclaw_research.md
+assets
+coverage

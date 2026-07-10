@@ -1,8 +1,17 @@
-<p align="center">
-  <img src="assets/crablite.png" alt="crablite — a lightweight agent framework inspired by OpenClaw" width="500">
+<div align="center">
+
+<img src="assets/crablite.png" alt="crablite — a lightweight agent framework inspired by OpenClaw" width="440">
+
+<p>
+  <img src="https://img.shields.io/badge/node-%3E%3D20-339933?logo=nodedotjs&logoColor=white" alt="Node >= 20">
+  <img src="https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/tests-96%20passing-2ea44f" alt="96 tests passing">
+  <img src="https://img.shields.io/badge/coverage-~91%25-2ea44f" alt="~91% coverage">
+  <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license">
+  <img src="https://img.shields.io/badge/inspired%20by-OpenClaw-e8543f" alt="inspired by OpenClaw">
 </p>
 
-# 🦀 crablite
+</div>
 
 A **lightweight, faithful distillation of [OpenClaw](https://github.com/openclaw/openclaw)** — a
 personal AI assistant that lives on WhatsApp, remembers things by writing plain Markdown files,
