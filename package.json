@@ -1,0 +1,43 @@
+{
+  "name": "crablite",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "crablite — a lightweight, faithful distillation of OpenClaw: file-based memory, self-learning, folder skills, subagents, WhatsApp + CLI, Codex OAuth.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "crablite": "bin/crablite.mjs"
+  },
+  "scripts": {
+    "crablite": "tsx src/index.ts",
+    "start": "tsx src/index.ts whatsapp",
+    "chat": "tsx src/index.ts chat",
+    "login": "tsx src/index.ts login",
+    "dream": "tsx src/index.ts dream",
+    "dev": "tsx watch src/index.ts chat",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "baileys": "^6.7.0",
+    "qrcode-terminal": "^0.12.0",
+    "tsx": "^4.19.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/qrcode-terminal": "^0.12.2",
+    "@vitest/coverage-v8": "^4.1.10",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.10"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

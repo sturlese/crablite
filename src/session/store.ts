@@ -1,0 +1,117 @@
+// Durable sessions. Faithful to OpenClaw's model: a JSON index maps a stable
+// sessionKey to a sessionId + transcript file; the transcript is append-only
+// JSONL. We store Responses API items directly, so "resume" is just reloading
+// the input array.
+
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import { paths, ensureDir, writeJsonFileAtomic } from "../paths.js";
+
+type IndexEntry = {
+  sessionId: string;
+  file: string;
+  createdAt: number;
+  updatedAt: number;
+  /** Transcript size (chars) at the last memory flush, to throttle re-flushing. */
+  flushedChars?: number;
+};
+type SessionIndex = Record<string, IndexEntry>;
+
+export type Session = {
+  sessionKey: string;
+  sessionId: string;
+  file: string;
+  items: any[]; // Responses API input items, in order
+};
+
+function readIndex(): SessionIndex {
+  const file = paths.sessionsIndex();
+  if (!fs.existsSync(file)) return {};
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8")) as SessionIndex;
+  } catch {
+    return {};
+  }
+}
+
+function writeIndex(index: SessionIndex): void {
+  writeJsonFileAtomic(paths.sessionsIndex(), index);
+}
+
+function transcriptFile(sessionId: string): string {
+  return path.join(paths.sessionsDir(), `${sessionId}.jsonl`);
+}
+
+function loadItems(file: string): any[] {
+  if (!fs.existsSync(file)) return [];
+  const items: any[] = [];
+  for (const line of fs.readFileSync(file, "utf8").split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      const parsed = JSON.parse(line);
+      if (parsed?.type === "session") continue; // header line
+      if (parsed?.item) items.push(parsed.item);
+    } catch {
+      /* skip corrupt line */
+    }
+  }
+  return items;
+}
+
+export function loadSession(sessionKey: string): Session {
+  ensureDir(paths.sessionsDir());
+  const index = readIndex();
+  let entry = index[sessionKey];
+
+  if (!entry) {
+    const sessionId = crypto.randomUUID();
+    const file = transcriptFile(sessionId);
+    const now = Date.now();
+    entry = { sessionId, file, createdAt: now, updatedAt: now };
+    index[sessionKey] = entry;
+    writeIndex(index);
+    fs.writeFileSync(
+      file,
+      JSON.stringify({ type: "session", sessionId, sessionKey, createdAt: now }) + "\n",
+      { mode: 0o600 },
+    );
+  }
+
+  return { sessionKey, sessionId: entry.sessionId, file: entry.file, items: loadItems(entry.file) };
+}
+
+/** Append items to the transcript (and in-memory list) and touch the index. */
+export function appendItems(session: Session, items: any[]): void {
+  if (!items.length) return;
+  const lines = items.map((item) => JSON.stringify({ ts: Date.now(), item }) + "\n").join("");
+  fs.appendFileSync(session.file, lines);
+  session.items.push(...items);
+
+  const index = readIndex();
+  const entry = index[session.sessionKey];
+  if (entry) {
+    entry.updatedAt = Date.now();
+    writeIndex(index);
+  }
+}
+
+/** Start a fresh conversation for this key (used by `/reset`). */
+export function resetSession(sessionKey: string): void {
+  const index = readIndex();
+  delete index[sessionKey];
+  writeIndex(index);
+}
+
+export function getFlushedChars(sessionKey: string): number {
+  return readIndex()[sessionKey]?.flushedChars ?? 0;
+}
+
+export function setFlushedChars(sessionKey: string, chars: number): void {
+  const index = readIndex();
+  const entry = index[sessionKey];
+  if (entry) {
+    entry.flushedChars = chars;
+    writeIndex(index);
+  }
+}

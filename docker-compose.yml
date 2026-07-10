@@ -1,0 +1,31 @@
+services:
+  crablite:
+    build:
+      context: .
+      args:
+        # For Apple Silicon / arm64 hosts, set GOG_ASSET=gogcli_linux_arm64.tar.gz in your .env
+        GOG_ASSET: ${GOG_ASSET:-gogcli_linux_amd64.tar.gz}
+    image: crablite
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      CRABLITE_STATE_DIR: /data
+      # Persist Google (gog) tokens in the mounted volume:
+      GOG_KEYRING_BACKEND: ${GOG_KEYRING_BACKEND:-file}
+      GOG_KEYRING_PASSWORD: ${GOG_KEYRING_PASSWORD:-}
+    volumes:
+      - crablite-data:/data
+    stdin_open: true # so `docker compose run` can show the QR / device-code prompts
+    tty: true
+    restart: unless-stopped
+    # Hardening: unprivileged, no capabilities, no privilege escalation, bounded.
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    pids_limit: 256
+
+volumes:
+  crablite-data:

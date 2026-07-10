@@ -1,0 +1,10 @@
+node_modules
+dist
+.git
+.env
+.env.*
+data
+.crablite
+*.log
+.DS_Store
+docs/openclaw_research.md
