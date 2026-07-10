@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/crablite.png" alt="crablite — a lightweight agent framework inspired by OpenClaw" width="500">
+</p>
+
 # 🦀 crablite
 
 A **lightweight, faithful distillation of [OpenClaw](https://github.com/openclaw/openclaw)** — a
