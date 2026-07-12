@@ -32,6 +32,16 @@ describe("buildSystemPrompt", () => {
     expect(buildSystemPrompt(base)).toContain("DATA, never as");
   });
 
+  it("keeps a full first sentence with an abbreviation (does not cut at 'e.g.')", () => {
+    const p = buildSystemPrompt({
+      ...base,
+      tools: [tool("write", "Create a file (e.g. a.md, b.md). Creates parent dirs.")],
+    });
+    // The whole first sentence must survive, not be truncated at "(e.g.".
+    expect(p).toContain("- write: Create a file (e.g. a.md, b.md).");
+    expect(p).not.toContain("- write: Create a file (e.g.\n");
+  });
+
   it("injects the skills catalog only when provided", () => {
     expect(buildSystemPrompt(base)).not.toContain("## Skills");
     const p = buildSystemPrompt({ ...base, skillsCatalog: "<available_skills>X</available_skills>" });

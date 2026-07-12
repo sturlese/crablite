@@ -108,7 +108,16 @@ export function buildSystemPrompt(params: {
   return sections.join("\n\n");
 }
 
+// The first sentence, for the compact tool list. The ". " inside an
+// abbreviation ("e.g.", "i.e." …) is not a sentence boundary, so skip past it
+// — otherwise a description like "... (e.g. a, b). ..." gets cut at "(e.g.".
 function firstSentence(text: string): string {
-  const dot = text.indexOf(". ");
-  return dot === -1 ? text : text.slice(0, dot + 1);
+  const ABBREV = /(?:e\.g|i\.e|etc|vs|cf)\.$/i;
+  for (let from = 0; ; ) {
+    const dot = text.indexOf(". ", from);
+    if (dot === -1) return text;
+    const head = text.slice(0, dot + 1);
+    if (!ABBREV.test(head)) return head;
+    from = dot + 2;
+  }
 }
