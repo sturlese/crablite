@@ -27,6 +27,20 @@ describe("runTurn", () => {
     expect(loadSession("k").items.length).toBeGreaterThanOrEqual(2); // user + assistant
   });
 
+  it("sends the current user message to the model exactly once", async () => {
+    dir = tmpState();
+    let capturedInput: any[] = [];
+    vi.mocked(callModel).mockImplementation(async (p) => {
+      capturedInput = [...p.input];
+      return { text: "ok", toolCalls: [] };
+    });
+    await runTurn({ sessionKey: "k", userText: "hello", channel: "cli", chatType: "direct", chatReply: reply });
+    // A fresh session's model input must be the single user turn — not a duplicate
+    // caused by prior aliasing session.items and being mutated by appendItems.
+    expect(capturedInput.length).toBe(1);
+    expect(capturedInput.filter((i) => JSON.stringify(i).includes("hello")).length).toBe(1);
+  });
+
   it("treats NO_REPLY as silent", async () => {
     dir = tmpState();
     vi.mocked(callModel).mockResolvedValue({ text: "NO_REPLY", toolCalls: [] });

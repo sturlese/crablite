@@ -57,9 +57,12 @@ export async function runTurn(params: {
   // item (this turn) carries images; the persisted item is text-only to keep the
   // transcript small (mirrors OpenClaw storing a media reference, not the bytes).
   const { liveItem, persistItem } = await buildUserMessage(params.userText, params.media);
+  // Build the model input BEFORE persisting: pruneForContext returns session.items
+  // itself when under budget, and appendItems mutates it in place — so appending
+  // first would leak persistItem into `prior` and send this turn to the model twice.
   const prior = pruneForContext(session.items);
-  appendItems(session, [persistItem]);
   const input = [...prior, liveItem];
+  appendItems(session, [persistItem]);
 
   // Assemble tools: core + memory + reminders + subagent spawning.
   const tools: Tool[] = [
