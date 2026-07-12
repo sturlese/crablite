@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { safeFetchText } from "../src/net/safe-fetch.js";
+import { safeFetchText, isPrivateIp } from "../src/net/safe-fetch.js";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -35,6 +35,17 @@ describe("safeFetchText SSRF guard", () => {
     );
     const t = await safeFetchText("http://8.8.8.8/", { maxBytes: 1000 });
     expect(t.length).toBe(1000);
+  });
+
+  it("blocks the whole fe80::/10 link-local range, not just the fe80 prefix", () => {
+    // Reachable via DNS: assertPublicHost runs every resolved AAAA address
+    // through isPrivateIp, so a host resolving to fe90–febf must be blocked.
+    for (const ip of ["fe80::1", "fe90::1", "fea0::1", "feb5::abcd", "febf::1"]) {
+      expect(isPrivateIp(ip)).toBe(true);
+    }
+    // Global-unicast addresses (2000::/3) stay public; fe80::/10 doesn't over-reach.
+    expect(isPrivateIp("2606:4700:4700::1111")).toBe(false);
+    expect(isPrivateIp("2001:4860:4860::8888")).toBe(false);
   });
 
   it("re-validates the target of a redirect", async () => {
