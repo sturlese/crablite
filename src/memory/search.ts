@@ -7,7 +7,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { paths, resolveInside } from "../paths.js";
-import { recordRecall } from "./recall.js";
+import { recordRecall, keyFor } from "./recall.js";
 import type { Tool } from "../agent/tools.js";
 
 const STOPWORDS = new Set([
@@ -107,17 +107,21 @@ export const memorySearchTool: Tool = {
     }
 
     const out: string[] = [`Found ${ranked.length} memory result(s) for "${query}":`, ""];
+    // recallCount counts recall EVENTS (searches), so record each distinct
+    // snippet at most once per search — otherwise a fact duplicated across
+    // blocks in the same file would inflate the dreaming-promotion signal.
+    const recorded = new Set<string>();
     for (const { b, s } of ranked) {
       const excerpt = b.text.length > 600 ? b.text.slice(0, 600) + " …" : b.text;
       out.push(`[score ${s.toFixed(2)}] ${b.rel}:${b.startLine}-${b.endLine}`);
       out.push(excerpt, "");
       if (b.isDaily) {
-        recordRecall({
-          snippet: b.text.slice(0, 600),
-          source: `${b.rel}:${b.startLine}-${b.endLine}`,
-          score: s,
-          query,
-        });
+        const snippet = b.text.slice(0, 600);
+        const key = keyFor(snippet);
+        if (!recorded.has(key)) {
+          recorded.add(key);
+          recordRecall({ snippet, source: `${b.rel}:${b.startLine}-${b.endLine}`, score: s, query });
+        }
       }
     }
     return out.join("\n").trim();

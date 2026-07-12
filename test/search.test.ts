@@ -26,6 +26,18 @@ describe("memory search", () => {
     expect(allEntries().length).toBe(1);
   });
 
+  it("records one recall per search even when the snippet is duplicated in a file", async () => {
+    const ctx = setup();
+    // Same fact appears in two separate blocks of the same daily note — a real
+    // outcome of stateless flushes re-appending overlapping context.
+    const fact = "The dog is named Pixel, a border collie.";
+    fs.writeFileSync(path.join(paths.memoryDir(), "2026-07-10.md"), `# day\n\n${fact}\n\n${fact}\n`);
+    await memorySearchTool.execute({ query: "what is the dog breed" }, ctx);
+    expect(allEntries()).toHaveLength(1);
+    // One search over a 2x-duplicated fact must count as a single recall event.
+    expect(allEntries()[0]!.recallCount).toBe(1);
+  });
+
   it("reports no match and rejects an empty query", async () => {
     const ctx = setup();
     expect(await memorySearchTool.execute({ query: "zzz nonexistentterm qqq" }, ctx)).toMatch(/No memory matched/);
