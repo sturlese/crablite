@@ -41,6 +41,22 @@ describe("config", () => {
     expect(c.heartbeatChat).toBe("34600@s.whatsapp.net");
   });
 
+  it("disables dreaming for common falsy env spellings, not just \"0\"", () => {
+    dir = tmpState();
+    for (const falsy of ["0", "false", "no", "off", "FALSE", "Off"]) {
+      process.env.CRABLITE_DREAMING = falsy;
+      resetConfigCache();
+      expect(loadConfig().dreaming, `${falsy} should disable dreaming`).toBe(false);
+    }
+    for (const truthy of ["1", "true", "yes", "on"]) {
+      process.env.CRABLITE_DREAMING = truthy;
+      resetConfigCache();
+      expect(loadConfig().dreaming, `${truthy} should enable dreaming`).toBe(true);
+    }
+    delete process.env.CRABLITE_DREAMING;
+    resetConfigCache();
+  });
+
   it("tolerates malformed config.json", () => {
     dir = tmpState();
     fs.writeFileSync(paths.config(), "{ not json");
