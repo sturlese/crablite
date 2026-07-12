@@ -72,6 +72,16 @@ describe("core tools", () => {
     expect(await tool("edit").execute({ path: "e.md", old: "zzz", new: "x" }, ctx)).toMatch(/not found/);
   });
 
+  it("exec falls back to the default timeout when timeoutSec is non-numeric", async () => {
+    const ctx = setup();
+    // Args are raw JSON (strict:false), so the model can send a string here.
+    // Without a guard this used to SIGKILL the command at ~1ms and return
+    // "[timed out after NaNs]"; it must instead run with the default timeout.
+    const out = await tool("exec").execute({ command: "echo hola", timeoutSec: "quick" }, ctx);
+    expect(out).toContain("hola");
+    expect(out).not.toContain("NaN");
+  });
+
   it("exec runs a shell command and enforces a timeout", async () => {
     const ctx = setup();
     expect(await tool("exec").execute({ command: "echo hola" }, ctx)).toContain("hola");
