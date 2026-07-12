@@ -167,6 +167,16 @@ export async function runDreaming(model?: string): Promise<DreamResult> {
   fs.appendFileSync(memoryPath, `\n${PROMOTION_HEADING} (${today})\n\n${bullets.join("\n\n")}\n`);
   compactMemory(memoryPath);
 
+  // compactMemory evicts whole promotion sections that don't fit the budget —
+  // including the one we just appended, when user content alone fills MEMORY.md.
+  // If our section didn't survive, it was never actually stored: don't mark the
+  // entries promoted (which would bar them forever) or claim we consolidated them.
+  const stored = existingMarkers(memoryPath);
+  if (!promotedKeys.some((k) => stored.has(k))) {
+    log.info("Dreaming: memory budget is full of user content; promotions could not be stored.");
+    return { promoted: 0, skipped, details };
+  }
+
   // 2) Write a DREAMS.md diary entry (best-effort reflective line via the model).
   const reflection = await reflect(model, details);
   ensureFile(dreamsPath, "# Dreams\n\n");
