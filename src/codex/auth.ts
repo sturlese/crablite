@@ -275,6 +275,12 @@ async function refreshCredential(cred: CodexCredential): Promise<CodexCredential
   const refresh = str(body?.refresh_token) ?? cred.refresh; // some servers omit a new refresh token
   const expiresInMs = typeof body?.expires_in === "number" ? body.expires_in * 1000 : undefined;
   const next = buildCredential({ access, refresh, expiresInMs });
+  // A refreshed access token may not re-embed the profile/auth claims; keep the
+  // prior identity rather than nulling it — same reasoning as the refresh-token
+  // fallback above. accountId backs the required ChatGPT-Account-Id header.
+  next.accountId ??= cred.accountId;
+  next.email ??= cred.email;
+  next.planType ??= cred.planType;
   writeCredential(next);
   return next;
 }
