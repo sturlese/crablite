@@ -10,7 +10,8 @@ const LEVEL_ORDER: Record<Level, number> = { debug: 10, info: 20, warn: 30, erro
 // which would turn every shouldLog comparison into `n >= NaN` → false and mute
 // all output, errors included.
 const envLevel = process.env.CRABLITE_LOG_LEVEL;
-const threshold: Level = envLevel && envLevel in LEVEL_ORDER ? (envLevel as Level) : "info";
+const threshold: Level =
+  envLevel && Object.hasOwn(LEVEL_ORDER, envLevel) ? (envLevel as Level) : "info";
 
 function shouldLog(level: Level): boolean {
   return LEVEL_ORDER[level] >= LEVEL_ORDER[threshold];

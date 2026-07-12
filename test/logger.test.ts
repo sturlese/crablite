@@ -23,6 +23,13 @@ describe("logger threshold", () => {
     expect(spy.mock.calls.map((c) => String(c[0])).join("")).toContain("boom");
   });
 
+  it("still emits errors when the level collides with an Object.prototype key", async () => {
+    const spy = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const log = await loadLoggerWith("toString"); // inherited key, not an own level
+    log.error("boom");
+    expect(spy).toHaveBeenCalled();
+  });
+
   it("honors a valid level (info shows info, hides debug)", async () => {
     const out = vi.spyOn(process.stdout, "write").mockReturnValue(true);
     const log = await loadLoggerWith("info");
