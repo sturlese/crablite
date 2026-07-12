@@ -47,4 +47,18 @@ describe("reminders", () => {
     );
     expect(await scheduleReminderTool.execute({ text: "" }, ctx())).toMatch(/empty/);
   });
+
+  it("schedule_reminder rejects a non-numeric inMinutes instead of silently never firing", async () => {
+    dir = tmpState();
+    ensureStateDirs();
+    // The model can emit a string for inMinutes (args are raw JSON, not coerced).
+    // Number("abc") is NaN and Math.max(1, NaN) is NaN, which used to produce a
+    // dueAt=NaN reminder: reported as "set" but never returned by dueReminders().
+    expect(await scheduleReminderTool.execute({ text: "x", inMinutes: "abc" }, ctx())).toMatch(/could not parse/);
+    // Nothing un-fireable should have been persisted.
+    expect(pendingReminders()).toHaveLength(0);
+    // A numeric string is still accepted (tolerant of stringified numbers).
+    expect(await scheduleReminderTool.execute({ text: "y", inMinutes: "15" }, ctx())).toMatch(/Reminder set/);
+    expect(dueReminders(Date.now() + 20 * 60_000)).toHaveLength(1);
+  });
 });

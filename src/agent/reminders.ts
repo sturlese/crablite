@@ -88,7 +88,14 @@ export const scheduleReminderTool: Tool = {
       dueAt = Date.parse(String(args.at));
       if (Number.isNaN(dueAt)) return `ERROR: could not parse date "${args.at}". Use ISO 8601.`;
     } else {
-      dueAt = Date.now() + Math.max(1, Number(args.inMinutes ?? 60)) * 60_000;
+      const minutes = Number(args.inMinutes ?? 60);
+      // Math.max(1, NaN) is NaN, so a non-numeric inMinutes would otherwise
+      // yield dueAt=NaN: the reminder is "set" but never becomes due. Guard it
+      // the same way the `at` branch guards an unparseable date.
+      if (!Number.isFinite(minutes)) {
+        return `ERROR: could not parse inMinutes "${args.inMinutes}". Provide a number of minutes.`;
+      }
+      dueAt = Date.now() + Math.max(1, minutes) * 60_000;
     }
     const r = addReminder({ text, dueAt, chatId: ctx.chatId, chatType: ctx.chatType });
     return `Reminder set for ${new Date(r.dueAt).toLocaleString()}: "${text}".`;
