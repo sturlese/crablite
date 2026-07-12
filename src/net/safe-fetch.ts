@@ -60,7 +60,7 @@ async function assertPublicHost(hostname: string): Promise<void> {
   }
 }
 
-function isPrivateIp(ip: string): boolean {
+export function isPrivateIp(ip: string): boolean {
   const v = net.isIP(ip);
   if (v === 4) {
     const p = ip.split(".").map(Number);
@@ -76,7 +76,10 @@ function isPrivateIp(ip: string): boolean {
   }
   const ipl = ip.toLowerCase();
   if (ipl === "::1" || ipl === "::") return true;
-  if (ipl.startsWith("fe80") || ipl.startsWith("fc") || ipl.startsWith("fd")) return true; // link-local / ULA
+  // fe80::/10 link-local spans fe80–febf (2nd hextet's high nibble 8–b), not
+  // just the fe80 prefix; startsWith("fe80") let fe90–febf through as "public".
+  if (/^fe[89ab]/.test(ipl)) return true; // fe80::/10 link-local
+  if (ipl.startsWith("fc") || ipl.startsWith("fd")) return true; // fc00::/7 ULA
   if (ipl.startsWith("::ffff:")) return isPrivateIp(ipl.slice(7)); // IPv4-mapped
   return false;
 }
