@@ -60,8 +60,12 @@ function parseSkill(file: string): Skill | null {
     log.debug(`Skipping skill without name/description: ${file}`);
     return null;
   }
-  const requiresBins = extractBins(fm);
-  const eligible = requiresBins.every(hasBinary);
+  const { bins, anyBins } = extractBins(fm);
+  const requiresBins = [...new Set([...bins, ...anyBins])];
+  // `bins` are ALL required (AND); `anyBins` need only ONE present (OR) — the
+  // whole point of the separate key. Folding them together would make anyBins
+  // behave like bins. Faithful to OpenClaw's resolveMissingAnyBins (some()).
+  const eligible = bins.every(hasBinary) && (anyBins.length === 0 || anyBins.some(hasBinary));
   return { name, description, location: file, requiresBins, eligible };
 }
 
@@ -81,14 +85,19 @@ function matchScalar(fm: string, key: string): string | undefined {
   return m[1]!.trim().replace(/^["']|["']$/g, "").trim() || undefined;
 }
 
-/** Find bins/anyBins arrays anywhere in the frontmatter (JSON or YAML inline). */
-function extractBins(fm: string): string[] {
+/**
+ * Find bins/anyBins arrays in the frontmatter (JSON or YAML inline), keeping the
+ * two apart: `bins` are all-required (AND), `anyBins` need only one (OR).
+ */
+function extractBins(fm: string): { bins: string[]; anyBins: string[] } {
   const bins = new Set<string>();
-  // Inline array form:  bins: ["gog"]  or  "bins": ["gog", "curl"]
-  for (const m of fm.matchAll(/["']?(?:any)?bins["']?\s*:\s*\[([^\]]*)\]/gi)) {
-    for (const tok of m[1]!.split(",")) {
+  const anyBins = new Set<string>();
+  // Inline array form:  bins: ["gog"]  or  anyBins: ["gog", "curl"]
+  for (const m of fm.matchAll(/["']?(any)?bins["']?\s*:\s*\[([^\]]*)\]/gi)) {
+    const target = m[1] ? anyBins : bins;
+    for (const tok of m[2]!.split(",")) {
       const b = tok.trim().replace(/^["']|["']$/g, "");
-      if (b) bins.add(b);
+      if (b) target.add(b);
     }
   }
   // YAML dash-list form (parsed line-by-line — no backtracking regex):
@@ -96,15 +105,17 @@ function extractBins(fm: string): string[] {
   //     - gog
   const lines = fm.split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
-    if (!/^\s*(?:any)?bins\s*:\s*$/i.test(lines[i]!)) continue;
+    const head = lines[i]!.match(/^\s*(any)?bins\s*:\s*$/i);
+    if (!head) continue;
+    const target = head[1] ? anyBins : bins;
     for (let j = i + 1; j < lines.length; j++) {
       const dm = lines[j]!.match(/^\s*-\s*(.+?)\s*$/);
       if (!dm) break;
       const b = dm[1]!.replace(/^["']|["']$/g, "").trim();
-      if (b) bins.add(b);
+      if (b) target.add(b);
     }
   }
-  return [...bins];
+  return { bins: [...bins], anyBins: [...anyBins] };
 }
 
 // --- binary presence check --------------------------------------------------
