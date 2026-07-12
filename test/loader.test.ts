@@ -58,6 +58,30 @@ describe("skills loader", () => {
     expect(d.eligible).toBe(false);
   });
 
+  it("treats anyBins as OR (eligible if one present) but bins as AND", () => {
+    dir = tmpState();
+    ensureStateDirs();
+    // anyBins: at least one present -> eligible (sh exists, fake does not).
+    writeSkill(
+      "any-ok",
+      `name: any-ok\ndescription: Any of these.\nmetadata:\n  crablite:\n    requires:\n      anyBins: ["sh", "${FAKE_BIN}"]`,
+    );
+    // anyBins: none present -> ineligible.
+    writeSkill(
+      "any-none",
+      `name: any-none\ndescription: None present.\nmetadata:\n  crablite:\n    requires:\n      anyBins: ["${FAKE_BIN}", "${FAKE_BIN}-2"]`,
+    );
+    // bins stays AND: one missing -> ineligible even though sh is present.
+    writeSkill(
+      "all-req",
+      `name: all-req\ndescription: All required.\nmetadata:\n  crablite:\n    requires:\n      bins: ["sh", "${FAKE_BIN}"]`,
+    );
+    const skills = loadSkills();
+    expect(skills.find((s) => s.name === "any-ok")!.eligible).toBe(true);
+    expect(skills.find((s) => s.name === "any-none")!.eligible).toBe(false);
+    expect(skills.find((s) => s.name === "all-req")!.eligible).toBe(false);
+  });
+
   it("workspace skills override bundled by name", () => {
     dir = tmpState();
     ensureStateDirs();
