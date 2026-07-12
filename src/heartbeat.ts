@@ -19,9 +19,20 @@ import { log } from "./logger.js";
 type Sender = (chatId: string, text: string) => Promise<void>;
 
 export function startHeartbeat(send: Sender): void {
+  // A single reminder turn can run for up to the model idle timeout (~2 min),
+  // longer than the 60s interval. setInterval does not await the previous run,
+  // so without this guard two ticks overlap: the second delivers a reminder the
+  // first hasn't reached yet, then the first's stale snapshot delivers it again.
+  let running = false;
   const check = async () => {
-    await deliverDueReminders(send);
-    await maybeDailyCheckIn(send);
+    if (running) return;
+    running = true;
+    try {
+      await deliverDueReminders(send);
+      await maybeDailyCheckIn(send);
+    } finally {
+      running = false;
+    }
   };
   setInterval(() => void check(), 60_000); // every minute
   setTimeout(() => void check(), 10_000); // and shortly after startup
