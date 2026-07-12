@@ -66,4 +66,30 @@ describe("callModel (Codex Responses API)", () => {
     );
     await expect(callModel({ model: "m", instructions: "i", input: [], tools: [] })).rejects.toThrow(/boom/);
   });
+
+  it("surfaces the error nested under response for a real response.failed event", async () => {
+    // The real Responses API nests the failure under `response.error`, not a
+    // top-level `error` — the reason must not be swallowed as "unknown model error".
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        body: sseStream([
+          { event: "response.failed", data: { type: "response.failed", response: { error: { code: "rate_limit_exceeded", message: "Rate limit reached" } } } },
+        ]),
+      }),
+    );
+    await expect(callModel({ model: "m", instructions: "i", input: [], tools: [] })).rejects.toThrow(/Rate limit reached/);
+  });
+
+  it("surfaces a top-level error event message", async () => {
+    // A standalone `error` event keeps the message at the top level.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, status: 200, statusText: "OK", body: sseStream([{ event: "error", data: { type: "error", message: "stream broke" } }]) }),
+    );
+    await expect(callModel({ model: "m", instructions: "i", input: [], tools: [] })).rejects.toThrow(/stream broke/);
+  });
 });

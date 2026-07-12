@@ -155,7 +155,15 @@ export async function callModel(params: {
         }
         case "response.failed":
         case "error": {
-          const message = evt.data?.error?.message ?? evt.data?.message ?? "unknown model error";
+          // The two events nest the error differently: a top-level `error`
+          // event carries {message} directly, while `response.failed` nests it
+          // under response.error ({code,message}). Check both so the real
+          // server-provided reason isn't lost as "unknown model error".
+          const message =
+            evt.data?.error?.message ??
+            evt.data?.response?.error?.message ??
+            evt.data?.message ??
+            "unknown model error";
           throw new Error(`Codex model error: ${message}`);
         }
         case "response.completed":
