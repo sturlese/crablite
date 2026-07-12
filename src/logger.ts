@@ -5,7 +5,13 @@ type Level = "debug" | "info" | "warn" | "error";
 
 const LEVEL_ORDER: Record<Level, number> = { debug: 10, info: 20, warn: 30, error: 40 };
 
-const threshold: Level = (process.env.CRABLITE_LOG_LEVEL as Level) || "info";
+// Fall back to "info" for an unset OR unrecognized level. A bad value (typo,
+// "verbose", uppercase "WARN") must never make LEVEL_ORDER[threshold] undefined,
+// which would turn every shouldLog comparison into `n >= NaN` → false and mute
+// all output, errors included.
+const envLevel = process.env.CRABLITE_LOG_LEVEL;
+const threshold: Level =
+  envLevel && Object.hasOwn(LEVEL_ORDER, envLevel) ? (envLevel as Level) : "info";
 
 function shouldLog(level: Level): boolean {
   return LEVEL_ORDER[level] >= LEVEL_ORDER[threshold];
