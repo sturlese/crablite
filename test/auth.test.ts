@@ -58,6 +58,25 @@ describe("codex auth", () => {
     expect(readCredential()!.access).toBe(newAccess);
   });
 
+  it("preserves prior identity on refresh when the new token omits its claims", async () => {
+    dir = tmpState();
+    // A refreshed access token whose JWT carries no auth/profile claims (valid:
+    // refreshed access tokens aren't required to re-embed profile/email).
+    const newAccess = fakeJwt({ exp: Math.floor(Date.now() / 1000) + 3600 });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify({ access_token: newAccess, refresh_token: "r2", expires_in: 3600 }) }),
+    );
+    writeCred({ version: 1, access: "old", refresh: "r", expires: Date.now() - 1000, accountId: "acc", email: "me@x.com", planType: "plus" });
+
+    const { accountId } = await getAccessToken();
+    // The required ChatGPT-Account-Id header must survive a refresh.
+    expect(accountId).toBe("acc");
+    const stored = readCredential()!;
+    expect(stored.email).toBe("me@x.com");
+    expect(stored.planType).toBe("plus");
+  });
+
   const jsonRes = (o: unknown) => ({ ok: true, text: async () => JSON.stringify(o) });
   const noop = () => {};
 
