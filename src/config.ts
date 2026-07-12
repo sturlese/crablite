@@ -59,6 +59,12 @@ function parseListEnv(value: string | undefined): string[] | undefined {
   return items.length ? items : undefined;
 }
 
+// Env boolean: recognize the common falsy spellings so CRABLITE_DREAMING=false
+// (or no/off) disables, not just "0". Anything else is truthy.
+function parseBoolEnv(value: string): boolean {
+  return !/^(0|false|no|off)$/i.test(value.trim());
+}
+
 let cached: Config | null = null;
 
 export function loadConfig(): Config {
@@ -81,7 +87,7 @@ export function loadConfig(): Config {
   if (process.env.CRABLITE_AGENT_NAME) merged.agentName = process.env.CRABLITE_AGENT_NAME.trim();
   const allow = parseListEnv(process.env.CRABLITE_ALLOW_FROM);
   if (allow) merged.allowFrom = allow;
-  if (process.env.CRABLITE_DREAMING) merged.dreaming = process.env.CRABLITE_DREAMING !== "0";
+  if (process.env.CRABLITE_DREAMING) merged.dreaming = parseBoolEnv(process.env.CRABLITE_DREAMING);
   if (process.env.CRABLITE_PRIMARY_CHAT) merged.heartbeatChat = process.env.CRABLITE_PRIMARY_CHAT.trim();
 
   // Strip a provider prefix like "openai/gpt-5.5" -> "gpt-5.5".
