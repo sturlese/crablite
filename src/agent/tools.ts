@@ -148,7 +148,11 @@ const execTool: Tool = {
     additionalProperties: false,
   },
   async execute(args, ctx) {
-    const timeoutMs = Math.max(1, Number(args.timeoutSec ?? 60)) * 1000;
+    // Math.max(1, NaN) is NaN, and setTimeout(_, NaN) fires immediately — a
+    // non-numeric timeoutSec would SIGKILL the command at ~1ms and report a
+    // bogus "[timed out after NaNs]". Fall back to the default, like reminders.ts.
+    const rawSec = Number(args.timeoutSec ?? 60);
+    const timeoutMs = (Number.isFinite(rawSec) ? Math.max(1, rawSec) : 60) * 1000;
     const cwd = args.cwd ? resolveInside(ctx.workspaceDir, String(args.cwd)) : ctx.workspaceDir;
     return await runShell(String(args.command), cwd, timeoutMs);
   },
