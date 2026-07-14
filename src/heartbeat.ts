@@ -1,10 +1,14 @@
-// Heartbeat — the proactive loop. Two jobs:
+// Heartbeat — the proactive loop. Three jobs:
 //   1. Deliver due reminders (commitments) as natural, context-aware messages.
-//   2. Optionally, a once-daily check-in guided by HEARTBEAT.md, to a configured
+//   2. Run due routines (recurring standing instructions) as proactive turns.
+//   3. Optionally, a once-daily check-in guided by HEARTBEAT.md, to a configured
 //      primary chat (CRABLITE_PRIMARY_CHAT) — off unless you set that.
 //
-// This is OpenClaw's heartbeat runner (src/infra/heartbeat-runner.ts) reduced to
-// the essentials: the agent can act without waiting for a user message.
+// This is OpenClaw's heartbeat runner (src/infra/heartbeat-runner.ts) plus its
+// cron scheduler, reduced to the essentials: the agent can act without waiting
+// for a user message. Reminders must always land (plain-text fallback);
+// routines respect NO_REPLY — a monitoring routine that finds nothing stays
+// quiet, in the spirit of OpenClaw's standing orders.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -14,6 +18,7 @@ import { runTurn } from "./agent/runner.js";
 import { sessionKeyFor } from "./session/store.js";
 import { withLock } from "./util/lock.js";
 import { dueReminders, markDelivered, type Reminder } from "./agent/reminders.js";
+import { advanceRoutine, describeSchedule, dueRoutines, type Routine } from "./agent/routines.js";
 import { todayStamp } from "./memory/workspace.js";
 import { log } from "./logger.js";
 
@@ -30,6 +35,7 @@ export function startHeartbeat(channelId: string, send: Sender): void {
     running = true;
     try {
       await deliverDueReminders(channelId, send);
+      await runDueRoutines(channelId, send);
       await maybeDailyCheckIn(channelId, send);
     } finally {
       running = false;
@@ -73,6 +79,41 @@ async function deliverReminder(channelId: string, r: Reminder, send: Sender): Pr
   );
   if (!res.silent && res.replyText) await send(r.chatId, res.replyText);
   else if (res.silent) await send(r.chatId, `⏰ ${r.text}`); // ensure the reminder lands
+}
+
+// --- recurring routines -------------------------------------------------------
+
+async function runDueRoutines(channelId: string, send: Sender): Promise<void> {
+  for (const r of dueRoutines()) {
+    advanceRoutine(r.id); // advance first so a crash skips to the next occurrence
+    try {
+      await runRoutine(channelId, r, send);
+    } catch (err) {
+      // Unlike reminders there is no plain-text fallback: the routine will
+      // fire again at its next occurrence anyway.
+      log.error(`Routine [${r.id}] failed:`, err instanceof Error ? err.message : String(err));
+    }
+  }
+}
+
+async function runRoutine(channelId: string, r: Routine, send: Sender): Promise<void> {
+  log.info(`Running routine [${r.id}] (${describeSchedule(r.schedule)}).`);
+  // Serialize with any inbound turn for the same chat.
+  const res = await withLock(r.chatId, () =>
+    runTurn({
+      sessionKey: sessionKeyFor(channelId, r.chatType, r.chatId),
+      userText:
+        `[Scheduled routine ${r.id} — ${describeSchedule(r.schedule)}] Your standing instruction: ` +
+        `"${r.text}". Do it now. If it is a check and there is genuinely nothing worth telling ` +
+        `the user, reply exactly NO_REPLY.`,
+      channel: channelId,
+      chatType: r.chatType,
+      chatId: r.chatId,
+      chatReply: async (t) => send(r.chatId, t),
+    }),
+  );
+  // Routines respect silence — no fallback send (see module header).
+  if (!res.silent && res.replyText) await send(r.chatId, res.replyText);
 }
 
 // --- optional daily HEARTBEAT.md check-in -----------------------------------
