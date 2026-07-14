@@ -28,31 +28,46 @@ export type ModelResult = {
   toolCalls: ToolCall[];
 };
 
+// --- Responses API transcript items ------------------------------------------
+// The discriminated union of everything we persist per JSONL line and send as
+// the model `input`. prune/store/loop branch on `type` — keep the union closed.
+
+export type ContentPart =
+  | { type: "input_text"; text: string }
+  | { type: "output_text"; text: string }
+  | { type: "input_image"; image_url: string };
+
+export type MessageItem = { type: "message"; role: "user" | "assistant"; content: ContentPart[] };
+export type FunctionCallItem = { type: "function_call"; name: string; arguments: string; call_id: string };
+export type FunctionOutputItem = { type: "function_call_output"; call_id: string; output: string };
+
+export type ResponseItem = MessageItem | FunctionCallItem | FunctionOutputItem;
+
 // --- Responses API input-item builders --------------------------------------
 
-export function userItem(text: string) {
+export function userItem(text: string): MessageItem {
   return { type: "message", role: "user", content: [{ type: "input_text", text }] };
 }
 
 /** A user message with mixed content parts (text + input_image). */
-export function userItemWithParts(parts: any[]) {
+export function userItemWithParts(parts: ContentPart[]): MessageItem {
   return { type: "message", role: "user", content: parts };
 }
 
 /** An input_image content part from raw bytes (base64 data URI). */
-export function imagePart(data: Buffer, mimetype: string) {
+export function imagePart(data: Buffer, mimetype: string): ContentPart {
   return { type: "input_image", image_url: `data:${mimetype || "image/jpeg"};base64,${data.toString("base64")}` };
 }
 
-export function assistantItem(text: string) {
+export function assistantItem(text: string): MessageItem {
   return { type: "message", role: "assistant", content: [{ type: "output_text", text }] };
 }
 
-export function functionCallItem(call: ToolCall) {
+export function functionCallItem(call: ToolCall): FunctionCallItem {
   return { type: "function_call", name: call.name, arguments: call.arguments, call_id: call.callId };
 }
 
-export function functionOutputItem(callId: string, output: string) {
+export function functionOutputItem(callId: string, output: string): FunctionOutputItem {
   return { type: "function_call_output", call_id: callId, output };
 }
 
@@ -61,7 +76,7 @@ export function functionOutputItem(callId: string, output: string) {
 export async function callModel(params: {
   model: string;
   instructions: string;
-  input: any[];
+  input: ResponseItem[];
   tools: ToolSchema[];
   onTextDelta?: (delta: string) => void;
   idleTimeoutMs?: number;

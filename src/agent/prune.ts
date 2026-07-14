@@ -3,17 +3,19 @@
 // that fit a char budget, without leaving orphan tool outputs (which the
 // Responses API rejects). Cheaper than LLM compaction (see openclaw_research §3).
 
+import type { ResponseItem } from "../codex/responses.js";
+
 const DEFAULT_BUDGET_CHARS = 120_000; // ~30k tokens
 export const FLUSH_TRIGGER_CHARS = 90_000; // flush durable facts before we drop context
 export const FLUSH_MIN_GROWTH_CHARS = 40_000; // re-flush only after this much new growth
 
-export function estimateChars(items: any[]): number {
+export function estimateChars(items: ResponseItem[]): number {
   let total = 0;
   for (const item of items) total += estimateItem(item);
   return total;
 }
 
-function estimateItem(item: any): number {
+function estimateItem(item: ResponseItem): number {
   try {
     return JSON.stringify(item).length;
   } catch {
@@ -21,15 +23,16 @@ function estimateItem(item: any): number {
   }
 }
 
-export function pruneForContext(items: any[], budgetChars = DEFAULT_BUDGET_CHARS): any[] {
+export function pruneForContext(items: ResponseItem[], budgetChars = DEFAULT_BUDGET_CHARS): ResponseItem[] {
   if (estimateChars(items) <= budgetChars) return items;
 
-  const kept: any[] = [];
+  const kept: ResponseItem[] = [];
   let size = 0;
   for (let i = items.length - 1; i >= 0; i--) {
-    const s = estimateItem(items[i]);
+    const item = items[i]!;
+    const s = estimateItem(item);
     if (size + s > budgetChars && kept.length) break;
-    kept.unshift(items[i]);
+    kept.unshift(item);
     size += s;
   }
 
@@ -38,9 +41,9 @@ export function pruneForContext(items: any[], budgetChars = DEFAULT_BUDGET_CHARS
   while (kept.length && kept[0]?.type !== "message") kept.shift();
 
   // Always retain the first message as the conversation anchor (design D12).
-  const firstMsgIdx = items.findIndex((it) => it?.type === "message");
-  if (firstMsgIdx >= 0 && !kept.includes(items[firstMsgIdx])) {
-    kept.unshift(items[firstMsgIdx]);
+  const anchor = items.find((it) => it.type === "message");
+  if (anchor && !kept.includes(anchor)) {
+    kept.unshift(anchor);
   }
   return kept;
 }

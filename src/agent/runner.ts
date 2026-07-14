@@ -5,7 +5,13 @@
 import { paths } from "../paths.js";
 import { loadConfig } from "../config.js";
 import { loadSession, appendItems, resetSession, getFlushedChars, setFlushedChars } from "../session/store.js";
-import { userItem, userItemWithParts, imagePart } from "../codex/responses.js";
+import {
+  userItem,
+  userItemWithParts,
+  imagePart,
+  type ContentPart,
+  type ResponseItem,
+} from "../codex/responses.js";
 import { CORE_TOOLS } from "./tools.js";
 import type { Tool } from "./tool.js";
 import { MEMORY_TOOLS } from "../memory/search.js";
@@ -120,14 +126,14 @@ export async function runTurn(params: {
 async function buildUserMessage(
   userText: string,
   media?: InboundMedia[],
-): Promise<{ liveItem: any; persistItem: any }> {
+): Promise<{ liveItem: ResponseItem; persistItem: ResponseItem }> {
   if (!media?.length) {
     const item = userItem(userText);
     return { liveItem: item, persistItem: item };
   }
 
   let text = userText;
-  const imageParts: any[] = [];
+  const imageParts: ContentPart[] = [];
   const persistNotes: string[] = [];
 
   for (const m of media) {
@@ -153,7 +159,7 @@ async function buildUserMessage(
     }
   }
 
-  const liveParts: any[] = [];
+  const liveParts: ContentPart[] = [];
   if (text.trim()) liveParts.push({ type: "input_text", text });
   liveParts.push(...imageParts);
   if (liveParts.length === 0) liveParts.push({ type: "input_text", text: "[media message]" });

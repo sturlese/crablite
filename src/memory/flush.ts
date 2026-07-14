@@ -5,7 +5,7 @@
 //
 // Faithful to OpenClaw's flush-plan.ts:13-40, simplified to a single model call.
 
-import { callModel } from "../codex/responses.js";
+import { callModel, type ResponseItem } from "../codex/responses.js";
 import { appendDailyNote } from "./workspace.js";
 import { log } from "../logger.js";
 
@@ -25,7 +25,7 @@ const FLUSH_INSTRUCTIONS = [
 ].join("\n");
 
 /** Run a flush over the given transcript items; append durable bullets to today's note. */
-export async function runMemoryFlush(model: string, items: any[]): Promise<void> {
+export async function runMemoryFlush(model: string, items: ResponseItem[]): Promise<void> {
   try {
     const result = await callModel({
       model,
