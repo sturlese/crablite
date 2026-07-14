@@ -3,7 +3,8 @@
 // `<codex-base>/audio/transcriptions` with the ChatGPT/Codex OAuth token and
 // model `gpt-4o-transcribe`.
 
-import { getAccessToken, USER_AGENT, ORIGINATOR } from "../codex/auth.js";
+import { getAccessToken } from "../codex/auth.js";
+import { USER_AGENT, ORIGINATOR } from "../version.js";
 import { CODEX_BASE_URL } from "../codex/responses.js";
 import { log } from "../logger.js";
 
