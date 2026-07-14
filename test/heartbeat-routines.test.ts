@@ -36,10 +36,14 @@ describe("heartbeat routines", () => {
     });
 
     const sends: Array<[string, string]> = [];
+    const typing: Array<[string, boolean]> = [];
     startHeartbeat({
       id: "whatsapp",
       send: async (chatId, text) => {
         sends.push([chatId, text]);
+      },
+      sendTyping: async (chatId, on) => {
+        typing.push([chatId, on]);
       },
     });
 
@@ -55,6 +59,9 @@ describe("heartbeat routines", () => {
     expect(call.userText).toContain("morning briefing");
     expect(call.chatId).toBe("a@s");
     expect(sends).toEqual([["a@s", "routine done"]]);
+    // Typing shown during the proactive turn and cleared afterwards.
+    expect(typing[0]).toEqual(["a@s", true]);
+    expect(typing[typing.length - 1]).toEqual(["a@s", false]);
 
     // Rescheduled from "now": one more minute tick must NOT re-fire it.
     await vi.advanceTimersByTimeAsync(60_000);
