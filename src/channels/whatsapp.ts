@@ -44,6 +44,12 @@ export class WhatsAppChannel implements Channel {
     await this.sock.sendMessage(chatId, { text });
   }
 
+  /** Show/hide "typing…" in a chat. Baileys auto-expires it (~10s); callers refresh. */
+  async sendTyping(chatId: string, on: boolean): Promise<void> {
+    if (!this.sock) return;
+    await this.sock.sendPresenceUpdate(on ? "composing" : "paused", chatId);
+  }
+
   /** Send a file, typed by mimetype (image/audio/video render natively). */
   async sendFile(chatId: string, file: OutboundFile): Promise<void> {
     if (!this.sock) throw new Error("WhatsApp is not connected.");
@@ -139,10 +145,20 @@ export class WhatsAppChannel implements Channel {
       quotedText: extractQuoted(m.message),
       media,
       reply: async (t: string) => {
-        const sent = await this.sock.sendMessage(remoteJid, { text: t });
+        // In groups, quote the message being answered so it's clear who/what
+        // the reply addresses; in a 1:1 chat a quote is just noise.
+        const opts = chatType === "group" ? { quoted: m } : undefined;
+        const sent = await this.sock.sendMessage(remoteJid, { text: t }, opts);
         return { messageId: String(sent?.key?.id ?? "") };
       },
       sendFile: (file: OutboundFile) => this.sendFile(remoteJid, file),
+      react: async (emoji: string) => {
+        await this.sock.sendMessage(remoteJid, { react: { text: emoji, key: m.key } });
+      },
+      setTyping: (on: boolean) => this.sendTyping(remoteJid, on),
+      markRead: async () => {
+        await this.sock.readMessages([m.key]);
+      },
     };
     await this.onInbound?.(msg);
   }

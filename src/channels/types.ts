@@ -34,6 +34,12 @@ export type InboundMessage = {
   reply(text: string): Promise<{ messageId: string }>;
   /** Send a file back to this chat (channels that can't, omit it). */
   sendFile?(file: OutboundFile): Promise<void>;
+  /** React to THIS message with a single emoji (lightweight acknowledgement). */
+  react?(emoji: string): Promise<void>;
+  /** Show/hide the "typing…" indicator in this chat. */
+  setTyping?(on: boolean): Promise<void>;
+  /** Mark this message as read (the agent has, after all, read it). */
+  markRead?(): Promise<void>;
 };
 
 export interface Channel {
@@ -44,5 +50,7 @@ export interface Channel {
   send(chatId: string, text: string): Promise<void>;
   /** Proactively send a file to a chat (used by routines delivering reports). */
   sendFile(chatId: string, file: OutboundFile): Promise<void>;
+  /** Show/hide the typing indicator in a chat (proactive turns). */
+  sendTyping(chatId: string, on: boolean): Promise<void>;
   stop(): Promise<void>;
 }
