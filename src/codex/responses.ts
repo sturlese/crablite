@@ -8,7 +8,8 @@
 // header/field is here and overridable via env for troubleshooting.
 
 import crypto from "node:crypto";
-import { getAccessToken, USER_AGENT, ORIGINATOR } from "./auth.js";
+import { getAccessToken } from "./auth.js";
+import { USER_AGENT, ORIGINATOR } from "../version.js";
 import { log } from "../logger.js";
 
 export const CODEX_BASE_URL =

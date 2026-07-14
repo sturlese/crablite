@@ -12,6 +12,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import { paths, writeSecretFile } from "../paths.js";
+import { USER_AGENT, ORIGINATOR } from "../version.js";
 import { log } from "../logger.js";
 
 const AUTH_BASE = "https://auth.openai.com";
@@ -22,10 +23,6 @@ const SCOPE = "openid profile email offline_access";
 const DEVICE_TIMEOUT_MS = 15 * 60_000;
 const DEVICE_DEFAULT_INTERVAL_MS = 5_000;
 const REFRESH_MARGIN_MS = 5 * 60_000;
-
-export const CRABLITE_VERSION = "0.1.0";
-export const USER_AGENT = `crablite/${CRABLITE_VERSION}`;
-export const ORIGINATOR = "crablite";
 
 export type CodexCredential = {
   version: 1;

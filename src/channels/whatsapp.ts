@@ -5,7 +5,7 @@ import * as Baileys from "baileys";
 import qrcode from "qrcode-terminal";
 import { paths, ensureDir } from "../paths.js";
 import { makeBaileysLogger, log } from "../logger.js";
-import { CRABLITE_VERSION } from "../codex/auth.js";
+import { CRABLITE_VERSION } from "../version.js";
 import type { Channel, InboundMessage, InboundMedia } from "./types.js";
 
 // Robust interop across Baileys' CJS/ESM builds.
