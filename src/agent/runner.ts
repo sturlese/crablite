@@ -30,7 +30,8 @@ import { buildSystemPrompt } from "./system-prompt.js";
 import { loadSkills, formatSkillCatalog } from "../skills/loader.js";
 import { loadProjectContext, loadRecentDailyNotes } from "../memory/workspace.js";
 import { transcribeAudio } from "../media/stt.js";
-import type { InboundMedia } from "../channels/types.js";
+import { saveInboundDocument, formatSize } from "../media/files.js";
+import type { InboundMedia, OutboundFile } from "../channels/types.js";
 import {
   estimateChars,
   FLUSH_TRIGGER_CHARS,
@@ -51,6 +52,7 @@ export async function runTurn(params: {
   chatId?: string;
   media?: InboundMedia[];
   chatReply: (text: string) => Promise<void>;
+  chatSendFile?: (file: OutboundFile) => Promise<void>;
   signal?: AbortSignal;
 }): Promise<TurnResult> {
   const cfg = loadConfig();
@@ -125,6 +127,7 @@ export async function runTurn(params: {
       chatId: params.chatId,
       chatType: params.chatType,
       chatReply: params.chatReply,
+      chatSendFile: params.chatSendFile,
       signal: params.signal,
     },
     maxRounds: cfg.maxToolRounds,
@@ -171,6 +174,16 @@ async function buildUserMessage(
         imageParts.push(imagePart(m.data, m.mimetype));
         persistNotes.push("[image]");
       }
+    } else if (m.kind === "document") {
+      let note: string;
+      try {
+        const rel = saveInboundDocument(m);
+        note = `[document saved: ${rel} (${m.mimetype || "unknown type"}, ${formatSize(m.data.length)})]`;
+      } catch {
+        note = "[document received — could not be saved]";
+      }
+      text += (text ? "\n" : "") + note;
+      persistNotes.push(note);
     } else {
       persistNotes.push(`[${m.kind}]`);
     }
