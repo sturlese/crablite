@@ -11,6 +11,7 @@ import path from "node:path";
 import { paths } from "./paths.js";
 import { loadConfig } from "./config.js";
 import { runTurn } from "./agent/runner.js";
+import { sessionKeyFor } from "./session/store.js";
 import { withLock } from "./util/lock.js";
 import { dueReminders, markDelivered, type Reminder } from "./agent/reminders.js";
 import { todayStamp } from "./memory/workspace.js";
@@ -18,7 +19,7 @@ import { log } from "./logger.js";
 
 type Sender = (chatId: string, text: string) => Promise<void>;
 
-export function startHeartbeat(send: Sender): void {
+export function startHeartbeat(channelId: string, send: Sender): void {
   // A single reminder turn can run for up to the model idle timeout (~2 min),
   // longer than the 60s interval. setInterval does not await the previous run,
   // so without this guard two ticks overlap: the second delivers a reminder the
@@ -28,8 +29,8 @@ export function startHeartbeat(send: Sender): void {
     if (running) return;
     running = true;
     try {
-      await deliverDueReminders(send);
-      await maybeDailyCheckIn(send);
+      await deliverDueReminders(channelId, send);
+      await maybeDailyCheckIn(channelId, send);
     } finally {
       running = false;
     }
@@ -39,11 +40,11 @@ export function startHeartbeat(send: Sender): void {
   log.info("Heartbeat started (proactive reminders + optional daily check-in).");
 }
 
-async function deliverDueReminders(send: Sender): Promise<void> {
+async function deliverDueReminders(channelId: string, send: Sender): Promise<void> {
   for (const r of dueReminders()) {
     markDelivered(r.id); // mark first so a crash can't double-deliver
     try {
-      await deliverReminder(r, send);
+      await deliverReminder(channelId, r, send);
     } catch (err) {
       log.error("Reminder delivery failed:", err instanceof Error ? err.message : String(err));
       // Fall back to a plain reminder so it isn't silently lost.
@@ -56,15 +57,15 @@ async function deliverDueReminders(send: Sender): Promise<void> {
   }
 }
 
-async function deliverReminder(r: Reminder, send: Sender): Promise<void> {
+async function deliverReminder(channelId: string, r: Reminder, send: Sender): Promise<void> {
   // Serialize with any inbound turn for the same chat.
   const res = await withLock(r.chatId, () =>
     runTurn({
-      sessionKey: `crablite:whatsapp:${r.chatType}:${r.chatId}`,
+      sessionKey: sessionKeyFor(channelId, r.chatType, r.chatId),
       userText:
         `[Proactive reminder] Earlier you set a reminder to bring this up now: "${r.text}". ` +
         `Message the user about it naturally and concisely, in character.`,
-      channel: "whatsapp",
+      channel: channelId,
       chatType: r.chatType,
       chatId: r.chatId,
       chatReply: async (t) => send(r.chatId, t),
@@ -96,7 +97,7 @@ function markRanToday(): void {
   }
 }
 
-async function maybeDailyCheckIn(send: Sender): Promise<void> {
+async function maybeDailyCheckIn(channelId: string, send: Sender): Promise<void> {
   const cfg = loadConfig();
   const chatId = cfg.heartbeatChat;
   if (!chatId) return; // check-ins are opt-in via CRABLITE_PRIMARY_CHAT
@@ -110,13 +111,13 @@ async function maybeDailyCheckIn(send: Sender): Promise<void> {
   try {
     const res = await withLock(chatId, () =>
       runTurn({
-        sessionKey: `crablite:whatsapp:direct:${chatId}`,
+        sessionKey: sessionKeyFor(channelId, "direct", chatId),
         userText:
           `[Heartbeat] It's your scheduled check-in. Guidance:\n${guidance}\n\n` +
           `Decide if there is anything genuinely worth proactively telling the user right now ` +
           `(due follow-ups, time-sensitive facts from memory). If yes, send a brief, useful message. ` +
           `If there is nothing worth interrupting them for, reply exactly NO_REPLY.`,
-        channel: "whatsapp",
+        channel: channelId,
         chatType: "direct",
         chatId,
         chatReply: async (t) => send(chatId, t),

@@ -19,8 +19,18 @@ type IndexEntry = {
 };
 type SessionIndex = Record<string, IndexEntry>;
 
+// Branded so a key can only come from sessionKeyFor — a hand-built string that
+// drifts from the format would silently fork a chat's history between the
+// reactive (handle) and proactive (heartbeat) paths.
+export type SessionKey = string & { readonly __sessionKey: unique symbol };
+
+/** The stable session key: one conversation per (channel, chatType, chatId). */
+export function sessionKeyFor(channel: string, chatType: "direct" | "group", chatId: string): SessionKey {
+  return `crablite:${channel}:${chatType}:${chatId}` as SessionKey;
+}
+
 export type Session = {
-  sessionKey: string;
+  sessionKey: SessionKey;
   sessionId: string;
   file: string;
   items: ResponseItem[]; // Responses API input items, in order
@@ -62,7 +72,7 @@ function loadItems(file: string): ResponseItem[] {
   return items;
 }
 
-export function loadSession(sessionKey: string): Session {
+export function loadSession(sessionKey: SessionKey): Session {
   ensureDir(paths.sessionsDir());
   const index = readIndex();
   let entry = index[sessionKey];
@@ -100,17 +110,17 @@ export function appendItems(session: Session, items: ResponseItem[]): void {
 }
 
 /** Start a fresh conversation for this key (used by `/reset`). */
-export function resetSession(sessionKey: string): void {
+export function resetSession(sessionKey: SessionKey): void {
   const index = readIndex();
   delete index[sessionKey];
   writeIndex(index);
 }
 
-export function getFlushedChars(sessionKey: string): number {
+export function getFlushedChars(sessionKey: SessionKey): number {
   return readIndex()[sessionKey]?.flushedChars ?? 0;
 }
 
-export function setFlushedChars(sessionKey: string, chars: number): void {
+export function setFlushedChars(sessionKey: SessionKey, chars: number): void {
   const index = readIndex();
   const entry = index[sessionKey];
   if (entry) {

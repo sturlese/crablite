@@ -4,7 +4,14 @@
 
 import { paths } from "../paths.js";
 import { loadConfig } from "../config.js";
-import { loadSession, appendItems, resetSession, getFlushedChars, setFlushedChars } from "../session/store.js";
+import {
+  loadSession,
+  appendItems,
+  resetSession,
+  getFlushedChars,
+  setFlushedChars,
+  type SessionKey,
+} from "../session/store.js";
 import {
   userItem,
   userItemWithParts,
@@ -31,7 +38,7 @@ import { log } from "../logger.js";
 export type TurnResult = { replyText: string; silent: boolean };
 
 export async function runTurn(params: {
-  sessionKey: string;
+  sessionKey: SessionKey;
   userText: string;
   channel: string;
   chatType: "direct" | "group";
@@ -168,7 +175,7 @@ async function buildUserMessage(
   return { liveItem: userItemWithParts(liveParts), persistItem: userItem(persistText) };
 }
 
-async function handleSlashCommand(text: string, sessionKey: string, model: string): Promise<TurnResult | null> {
+async function handleSlashCommand(text: string, sessionKey: SessionKey, model: string): Promise<TurnResult | null> {
   if (text === "/reset") {
     resetSession(sessionKey);
     return { replyText: "🦀 Started a fresh conversation. Your memory is unchanged.", silent: false };

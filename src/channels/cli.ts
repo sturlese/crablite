@@ -3,9 +3,10 @@
 
 import readline from "node:readline";
 import { runTurn } from "../agent/runner.js";
+import { sessionKeyFor } from "../session/store.js";
 import { loadConfig } from "../config.js";
 
-const SESSION_KEY = "crablite:cli:direct:cli";
+const SESSION_KEY = sessionKeyFor("cli", "direct", "cli");
 
 export async function runCliChat(): Promise<void> {
   const cfg = loadConfig();

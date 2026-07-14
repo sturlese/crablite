@@ -106,7 +106,7 @@ async function cmdWhatsApp(): Promise<void> {
   const handler = createInboundHandler("whatsapp");
   await channel.start(handler);
   startDreamingScheduler();
-  startHeartbeat((chatId, text) => channel.send(chatId, text));
+  startHeartbeat(channel.id, (chatId, text) => channel.send(chatId, text));
   // Stay alive (socket + schedulers keep the event loop busy).
 }
 
