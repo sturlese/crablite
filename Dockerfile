@@ -2,9 +2,10 @@
 # step: we run TypeScript directly with tsx.
 FROM node:24-bookworm-slim
 
-# System deps: TLS certs, curl (for gog install + skills), git, tini (init/reaper).
+# System deps: TLS certs, curl (for gog install + skills), git, tini (init/reaper),
+# poppler-utils (pdftotext — enables the bundled pdf skill).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates curl git tini \
+      ca-certificates curl git tini poppler-utils \
  && update-ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
