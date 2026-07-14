@@ -52,7 +52,7 @@ A map of the code and how a message flows through it.
 | `skills/loader.ts` | Scan folders → parse `SKILL.md` frontmatter → gate by `requires.bins` → catalog. |
 | `session/store.ts` | `sessions.json` index + append‑only JSONL transcripts (Responses items). |
 | `channels/types.ts` | `Channel` + `InboundMessage` interfaces. |
-| `channels/whatsapp.ts` | Baileys adapter: QR login, `messages.upsert`, send, reconnect. |
+| `channels/whatsapp.ts` | Baileys adapter: QR login, `messages.upsert`, send/sendFile/react/typing/read‑receipts, reconnect. |
 | `channels/cli.ts` | Readline REPL exercising the same `runTurn`. |
 | `handle.ts` | Shared inbound seam: allowlist, group mention gating, dedupe, per‑chat debounce + serialization; renders sender names (groups) and reply‑quotes for the model. |
 | `dreaming-cron.ts` | Nightly scheduler for `runDreaming`. |
@@ -67,8 +67,9 @@ A map of the code and how a message flows through it.
 
 1. A channel produces an `InboundMessage` (`chatId`, `senderId`, `senderName`, `chatType`, `text`,
    `quotedText` — the message being replied to, or a media placeholder — plus `reply()`/`sendFile()`).
-2. `handle.ts` admits it (allowlist + group mention), dedupes by id, debounces rapid messages, and
-   serializes per chat, then calls `runTurn`.
+2. `handle.ts` admits it (allowlist + group mention), marks it read, dedupes by id, debounces rapid
+   messages, and serializes per chat, then calls `runTurn` under a typing indicator (re‑asserted
+   every ~8s; WhatsApp expires it).
 3. `runTurn` (`agent/runner.ts`):
    - loads the session (`session/store.ts`) → prior Responses items;
    - if the transcript is large, runs `runMemoryFlush` first (durable facts → daily note);
