@@ -61,6 +61,7 @@ A map of the code and how a message flows through it.
 | `agent/schedule-tools.ts` | `schedule_routine` + `list_schedules` + `cancel_schedule` (reminders and routines). |
 | `heartbeat.ts` | Proactive loop: deliver due reminders, run due routines, optional daily `HEARTBEAT.md` check-in. |
 | `media/stt.ts` | Voice-note transcription via the Codex credential (`gpt-4o-transcribe`); images use Codex directly. |
+| `media/files.ts` | Chat file transfer: inbound documents → workspace `inbox/` (dated, sanitized); mimetype guessing + size cap for `send_file`. |
 
 ## Request lifecycle
 
@@ -118,12 +119,19 @@ Three faithful additions from OpenClaw, kept minimal:
   `src/agents/tools/cron-tool.ts`): structured daily/weekly/interval schedules instead of croner
   expressions, chat‑session execution instead of isolated sessions, no delivery/webhook machinery.
   Optionally a once‑daily `HEARTBEAT.md`‑guided check‑in to `CRABLITE_PRIMARY_CHAT`.
-- **Media** (`channels/whatsapp.ts` `extractMedia` + `media/stt.ts` + `codex/responses.ts` image
-  parts): inbound images become Responses `input_image` parts (Codex vision); voice notes are
-  transcribed via the **Codex credential** at `<codex-base>/audio/transcriptions` with
-  `gpt-4o-transcribe` (OpenClaw's `transcribeOpenAiCodexAudio` — no extra key), and the transcript is
-  persisted to the transcript + memory. The live turn carries the image bytes; the stored transcript
-  keeps a text placeholder to avoid bloat.
+- **Media & files** (`channels/whatsapp.ts` `extractMedia`/`sendFile` + `media/stt.ts` +
+  `media/files.ts` + `codex/responses.ts` image parts): inbound images become Responses
+  `input_image` parts (Codex vision); voice notes are transcribed via the **Codex credential** at
+  `<codex-base>/audio/transcriptions` with `gpt-4o-transcribe` (OpenClaw's
+  `transcribeOpenAiCodexAudio` — no extra key), and the transcript is persisted to the transcript +
+  memory. Inbound **documents** (incl. the `documentWithCaptionMessage` wrapper) are saved to the
+  workspace `inbox/` and the model is told the path; extraction is a **skill** (bundled `pdf`, gated
+  on `pdftotext`) instead of OpenClaw's pdfjs plugin. Outbound, the `send_file` tool reads a
+  workspace file (`resolveInside` containment — tokens are outside the workspace), guesses the
+  mimetype and hands it to the channel (`ctx.chatSendFile`, wired like `chatReply`; the heartbeat
+  binds `Channel.sendFile` so reminders/routines can deliver files too). One 20 MB cap both ways.
+  The live turn carries the image bytes; the stored transcript keeps a text placeholder to avoid
+  bloat.
 - **Startup context** (`memory/workspace.ts` `loadRecentDailyNotes`): on a fresh session, the last ~2
   days of daily notes are injected as a bounded "## Recent activity" prompt section (OpenClaw's
   `startup-context.ts`), so the agent knows recent events without searching.
@@ -158,6 +166,7 @@ Three faithful additions from OpenClaw, kept minimal:
 | `session/store.ts` | `src/config/sessions/*` | `sessions.json` + JSONL; single account, no gateway registry. |
 | `handle.ts` | `src/auto-reply/*` | Admission + mention + dedupe + debounce + `NO_REPLY`, collapsed. |
 | `agent/routines.ts` + `agent/schedule-tools.ts` | `src/cron/*`, `src/agents/tools/cron-tool.ts` | Structured daily/weekly/interval schedules instead of croner expressions; runs in the chat session; flat tool params (same LLM-friendliness lesson). |
+| `media/files.ts` + `send_file` + pdf skill | `extensions/document-extract`, `extensions/file-transfer` | Documents saved to plain `inbox/` files + binary-gated skill (`pdftotext`) instead of a pdfjs/canvas plugin; one send tool bound to the current chat. |
 | `Dockerfile` / `docker-compose.yml` | root `Dockerfile` / `docker-compose.yml` | One `node:24-slim` stage + baked `gog`; one service, one volume, one command. |
 
 ## Security posture

@@ -3,7 +3,7 @@
 # 🦀 crablite
 
 <p>
-  <img src="https://img.shields.io/badge/node-%3E%3D20-339933?logo=nodedotjs&logoColor=white" alt="Node >= 20">&nbsp;<img src="https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white" alt="TypeScript">&nbsp;<img src="https://img.shields.io/badge/tests-129%20passing-2ea44f" alt="129 tests passing">&nbsp;<img src="https://img.shields.io/badge/coverage-~91%25-2ea44f" alt="~91% coverage">&nbsp;<img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license">&nbsp;<img src="https://img.shields.io/badge/inspired%20by-OpenClaw-e8543f" alt="inspired by OpenClaw">
+  <img src="https://img.shields.io/badge/node-%3E%3D20-339933?logo=nodedotjs&logoColor=white" alt="Node >= 20">&nbsp;<img src="https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white" alt="TypeScript">&nbsp;<img src="https://img.shields.io/badge/tests-138%20passing-2ea44f" alt="138 tests passing">&nbsp;<img src="https://img.shields.io/badge/coverage-~91%25-2ea44f" alt="~91% coverage">&nbsp;<img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license">&nbsp;<img src="https://img.shields.io/badge/inspired%20by-OpenClaw-e8543f" alt="inspired by OpenClaw">
 </p>
 
 </div>
@@ -38,6 +38,9 @@ files you can read in an afternoon — not a 14,000‑file monorepo.
   on its own, and an optional daily check‑in can greet you with what matters.
 - **Sees and hears.** On WhatsApp it reads **images** (vision) and transcribes **voice notes** — both
   through your Codex credential, no extra key (just like OpenClaw).
+- **Files flow both ways.** Send it a **document** (a PDF invoice, a CSV) and it lands in the
+  workspace `inbox/` — the bundled **pdf** skill reads it. Ask for a file and it **sends it back**
+  (`send_file`): inbox documents, exports it produced, even a weekly report from a routine.
 - **Remembers recent days.** A fresh conversation is seeded with the last couple of days of notes, so
   it already knows what happened without you having to remind it.
 - **WhatsApp first, CLI for dev.** Chat with it on WhatsApp; debug it in your terminal — same code path.
@@ -178,8 +181,8 @@ Run `curl -s 'wttr.in/<place>?format=3'` and summarize the result in one sentenc
 - The model reads the body on demand via the `read` tool and follows it (usually running commands
   with `exec`). OpenClaw's `metadata.openclaw` block is also honored, so its skills drop in unchanged.
 
-Bundled skills: **gog** (Gmail + Sheets), **weather**, **web-search**. Run `crablite doctor` to see
-which are eligible.
+Bundled skills: **gog** (Gmail + Sheets), **weather**, **web-search**, **pdf** (needs `pdftotext`,
+baked into the Docker image). Run `crablite doctor` to see which are eligible.
 
 ---
 
@@ -211,7 +214,7 @@ scheduler**, distilled:
   check‑in** at `heartbeatHour`, guided by `workspace/HEARTBEAT.md`. By default it stays quiet
   (`NO_REPLY`) unless there's something genuinely worth telling you.
 
-## Media (images & voice notes)
+## Media & files (images, voice notes, documents)
 
 On WhatsApp the agent handles inbound media:
 
@@ -219,6 +222,15 @@ On WhatsApp the agent handles inbound media:
 - **Voice notes** are transcribed through your **Codex credential** (model `gpt-4o-transcribe` at the
   Codex `/audio/transcriptions` endpoint) — **no extra key**, exactly like OpenClaw's
   `openai-codex` transcription provider. The transcript is added to the message *and* saved to memory.
+- **Documents** (PDFs, CSVs, anything) are saved to the workspace **`inbox/`** with a dated,
+  sanitized name, and the agent is told where: *"here's the invoice"* → `inbox/2026-07-14-factura.pdf`
+  → the **pdf** skill extracts the text (`pdftotext`) and it answers. 20 MB cap, both directions.
+
+And outbound, the **`send_file`** tool delivers any workspace file to the chat — images, audio and
+video render natively; everything else arrives as a document with its filename. That closes loops
+like *"forward me the attachment from Ana's email"* (gog downloads it → `send_file`) and lets
+**routines deliver files** (*"every Monday, send me the week's expenses CSV"*). Only workspace files
+can be sent — tokens and auth state live outside it, unreachable by construction.
 
 ---
 
@@ -289,7 +301,10 @@ admission, reminders — mocking only the network (model/transport) and hardware
   schedules, lists and cancels in conversation, delivered on their own by a heartbeat; plus an
   optional daily check-in.
 - **Startup context**: the last couple of days of notes seeded into a fresh conversation.
-- **Inbound media**: images (vision) and voice notes (transcribed) — both through your Codex credential.
+- **Inbound media**: images (vision) and voice notes (transcribed) — both through your Codex
+  credential — plus documents saved into the workspace `inbox/` (with a bundled `pdf` skill).
+- **Outbound files**: `send_file` delivers workspace files (images, audio, documents) to the chat,
+  from conversation or from a routine.
 - **Gmail & Google Sheets** via the `gog` skill, with draft → confirm → send for email.
 - **Codex (ChatGPT) OAuth** as the only model auth (device-code + PKCE, auto-refresh).
 - **Docker-first**: a single `docker compose up`.
