@@ -56,7 +56,8 @@ async function assertPublicHost(hostname: string): Promise<void> {
   const addrs = await dns.lookup(hostname, { all: true });
   if (addrs.length === 0) throw new Error(`Cannot resolve host: ${hostname}`);
   for (const a of addrs) {
-    if (isPrivateIp(a.address)) throw new Error(`Blocked private address for ${hostname}: ${a.address}`);
+    if (isPrivateIp(a.address))
+      throw new Error(`Blocked private address for ${hostname}: ${a.address}`);
   }
 }
 

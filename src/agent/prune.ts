@@ -23,7 +23,10 @@ function estimateItem(item: ResponseItem): number {
   }
 }
 
-export function pruneForContext(items: ResponseItem[], budgetChars = DEFAULT_BUDGET_CHARS): ResponseItem[] {
+export function pruneForContext(
+  items: ResponseItem[],
+  budgetChars = DEFAULT_BUDGET_CHARS,
+): ResponseItem[] {
   if (estimateChars(items) <= budgetChars) return items;
 
   const kept: ResponseItem[] = [];

@@ -82,7 +82,12 @@ function extractFrontmatter(raw: string): string | null {
 function matchScalar(fm: string, key: string): string | undefined {
   const m = fm.match(new RegExp(`^${key}\\s*:\\s*(.+)$`, "m"));
   if (!m) return undefined;
-  return m[1]!.trim().replace(/^["']|["']$/g, "").trim() || undefined;
+  return (
+    m[1]!
+      .trim()
+      .replace(/^["']|["']$/g, "")
+      .trim() || undefined
+  );
 }
 
 /**

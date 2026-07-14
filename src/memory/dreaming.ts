@@ -34,7 +34,7 @@ function scoreEntry(e: RecallEntry, today: string): number {
   const relevance = clamp01(e.maxScore);
   const frequency = clamp01(e.recallCount / 8);
   const diversity = clamp01(e.queryHashes.length / 4);
-  const recency = Math.pow(0.5, daysBetween(e.lastRecalled, today) / 14);
+  const recency = 0.5 ** (daysBetween(e.lastRecalled, today) / 14);
   const consolidation = clamp01((e.recallDays.length - 1) / 3);
   return (
     W.relevance * relevance +
@@ -51,9 +51,7 @@ function clamp01(n: number): number {
 
 function passesGates(e: RecallEntry): boolean {
   return (
-    !e.promotedAt &&
-    e.recallCount >= MIN_RECALL_COUNT &&
-    e.queryHashes.length >= MIN_UNIQUE_QUERIES
+    !e.promotedAt && e.recallCount >= MIN_RECALL_COUNT && e.queryHashes.length >= MIN_UNIQUE_QUERIES
   );
 }
 
@@ -77,7 +75,10 @@ function rehydrate(e: RecallEntry): string | null {
   if (!fs.existsSync(abs)) return null;
   const content = fs.readFileSync(abs, "utf8");
   const lines = content.split("\n");
-  const atRange = lines.slice(parsed.start - 1, parsed.end).join("\n").trim();
+  const atRange = lines
+    .slice(parsed.start - 1, parsed.end)
+    .join("\n")
+    .trim();
 
   // Prefer the recorded range if it still overlaps the snippet.
   const probe = e.snippet.trim().slice(0, 50);
@@ -109,9 +110,7 @@ function compactMemory(memoryPath: string): void {
   const rest = content.slice(idx);
 
   // Split into promotion sections (each starts with the heading).
-  const sections = rest
-    .split(new RegExp(`(?=${PROMOTION_HEADING})`))
-    .filter((s) => s.trim());
+  const sections = rest.split(new RegExp(`(?=${PROMOTION_HEADING})`)).filter((s) => s.trim());
 
   while (preamble.length + sections.join("").length > MEMORY_BUDGET_CHARS && sections.length > 0) {
     sections.shift(); // drop the oldest (file order = chronological)
@@ -148,7 +147,10 @@ export async function runDreaming(model?: string): Promise<DreamResult> {
       skipped++;
       continue;
     }
-    const oneLine = text.replace(/\s+/g, " ").trim().replace(/^[-*]\s+/, "");
+    const oneLine = text
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/^[-*]\s+/, "");
     bullets.push(
       `<!-- crablite-promotion:${e.key} -->\n- ${oneLine} ` +
         `\`[score=${score.toFixed(2)} recalls=${e.recallCount} source=${e.source}]\``,
@@ -182,9 +184,7 @@ export async function runDreaming(model?: string): Promise<DreamResult> {
   ensureFile(dreamsPath, "# Dreams\n\n");
   fs.appendFileSync(
     dreamsPath,
-    `## ${today}\n\n${reflection}\n\n` +
-      details.map((d) => `- ${d}`).join("\n") +
-      "\n\n",
+    `## ${today}\n\n${reflection}\n\n` + details.map((d) => `- ${d}`).join("\n") + "\n\n",
   );
 
   // 3) Mark promoted so we don't re-promote.

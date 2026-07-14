@@ -48,7 +48,12 @@ function hashQuery(q: string): string {
 }
 
 /** Record a recall hit from a daily note. */
-export function recordRecall(params: { snippet: string; source: string; score: number; query: string }): void {
+export function recordRecall(params: {
+  snippet: string;
+  source: string;
+  score: number;
+  query: string;
+}): void {
   const snippet = params.snippet.trim();
   if (!snippet) return;
   const store = load();

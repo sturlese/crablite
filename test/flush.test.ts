@@ -23,7 +23,10 @@ describe("memory flush", () => {
   it("appends durable bullets to today's daily note", async () => {
     dir = tmpState();
     seedWorkspace();
-    vi.mocked(callModel).mockResolvedValue({ text: "- The user likes short emails.", toolCalls: [] });
+    vi.mocked(callModel).mockResolvedValue({
+      text: "- The user likes short emails.",
+      toolCalls: [],
+    });
     await runMemoryFlush("m", oneItem);
     const note = fs.readFileSync(dailyNotePath(), "utf8");
     expect(note).toContain("short emails");

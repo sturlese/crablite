@@ -74,11 +74,16 @@ export async function runAgentLoop(params: {
   return { text: finalText, newItems };
 }
 
-async function executeTool(tools: Tool[], name: string, rawArgs: string, ctx: ToolContext): Promise<string> {
+async function executeTool(
+  tools: Tool[],
+  name: string,
+  rawArgs: string,
+  ctx: ToolContext,
+): Promise<string> {
   const tool = tools.find((t) => t.name === name);
   if (!tool) return `ERROR: unknown tool "${name}".`;
   let args: any = {};
-  if (rawArgs && rawArgs.trim()) {
+  if (rawArgs.trim()) {
     try {
       args = JSON.parse(rawArgs);
     } catch {

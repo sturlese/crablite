@@ -21,7 +21,13 @@ describe("runTurn", () => {
   it("runs a text turn, persists the session, returns the reply", async () => {
     dir = tmpState();
     vi.mocked(callModel).mockResolvedValue({ text: "Hi there", toolCalls: [] });
-    const res = await runTurn({ sessionKey: "k", userText: "hello", channel: "cli", chatType: "direct", chatReply: reply });
+    const res = await runTurn({
+      sessionKey: "k",
+      userText: "hello",
+      channel: "cli",
+      chatType: "direct",
+      chatReply: reply,
+    });
     expect(res.silent).toBe(false);
     expect(res.replyText).toBe("Hi there");
     expect(loadSession("k").items.length).toBeGreaterThanOrEqual(2); // user + assistant
@@ -34,7 +40,13 @@ describe("runTurn", () => {
       capturedInput = [...p.input];
       return { text: "ok", toolCalls: [] };
     });
-    await runTurn({ sessionKey: "k", userText: "hello", channel: "cli", chatType: "direct", chatReply: reply });
+    await runTurn({
+      sessionKey: "k",
+      userText: "hello",
+      channel: "cli",
+      chatType: "direct",
+      chatReply: reply,
+    });
     // A fresh session's model input must be the single user turn — not a duplicate
     // caused by prior aliasing session.items and being mutated by appendItems.
     expect(capturedInput.length).toBe(1);
@@ -44,16 +56,34 @@ describe("runTurn", () => {
   it("treats NO_REPLY as silent", async () => {
     dir = tmpState();
     vi.mocked(callModel).mockResolvedValue({ text: "NO_REPLY", toolCalls: [] });
-    const res = await runTurn({ sessionKey: "k", userText: "hey", channel: "cli", chatType: "direct", chatReply: reply });
+    const res = await runTurn({
+      sessionKey: "k",
+      userText: "hey",
+      channel: "cli",
+      chatType: "direct",
+      chatReply: reply,
+    });
     expect(res.silent).toBe(true);
   });
 
   it("handles /help and /reset without calling the model", async () => {
     dir = tmpState();
-    const help = await runTurn({ sessionKey: "k", userText: "/help", channel: "cli", chatType: "direct", chatReply: reply });
+    const help = await runTurn({
+      sessionKey: "k",
+      userText: "/help",
+      channel: "cli",
+      chatType: "direct",
+      chatReply: reply,
+    });
     expect(help.replyText).toMatch(/Commands/);
     expect(callModel).not.toHaveBeenCalled();
-    const reset = await runTurn({ sessionKey: "k", userText: "/reset", channel: "cli", chatType: "direct", chatReply: reply });
+    const reset = await runTurn({
+      sessionKey: "k",
+      userText: "/reset",
+      channel: "cli",
+      chatType: "direct",
+      chatReply: reply,
+    });
     expect(reset.replyText).toMatch(/fresh conversation/);
   });
 

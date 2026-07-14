@@ -16,8 +16,18 @@ describe("recall tracking", () => {
   it("accumulates count, max score, and distinct queries", () => {
     dir = tmpState();
     ensureStateDirs();
-    recordRecall({ snippet: "a fact", source: "memory/2026-07-10.md:1-1", score: 0.5, query: "q1" });
-    recordRecall({ snippet: "a fact", source: "memory/2026-07-10.md:1-1", score: 0.9, query: "q2" });
+    recordRecall({
+      snippet: "a fact",
+      source: "memory/2026-07-10.md:1-1",
+      score: 0.5,
+      query: "q1",
+    });
+    recordRecall({
+      snippet: "a fact",
+      source: "memory/2026-07-10.md:1-1",
+      score: 0.9,
+      query: "q2",
+    });
     const e = allEntries();
     expect(e).toHaveLength(1);
     expect(e[0]!.recallCount).toBe(2);

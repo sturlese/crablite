@@ -30,7 +30,12 @@ import { loadSkills, formatSkillCatalog } from "../skills/loader.js";
 import { loadProjectContext, loadRecentDailyNotes } from "../memory/workspace.js";
 import { transcribeAudio } from "../media/stt.js";
 import type { InboundMedia } from "../channels/types.js";
-import { estimateChars, FLUSH_TRIGGER_CHARS, FLUSH_MIN_GROWTH_CHARS, pruneForContext } from "./prune.js";
+import {
+  estimateChars,
+  FLUSH_TRIGGER_CHARS,
+  FLUSH_MIN_GROWTH_CHARS,
+  pruneForContext,
+} from "./prune.js";
 import { runMemoryFlush } from "../memory/flush.js";
 import { runDreaming } from "../memory/dreaming.js";
 import { log } from "../logger.js";
@@ -62,7 +67,10 @@ export async function runTurn(params: {
   // only after the transcript has grown meaningfully since the last flush, so we
   // don't spend an extra model call every single turn once we're over the line.
   const chars = estimateChars(session.items);
-  if (chars > FLUSH_TRIGGER_CHARS && chars - getFlushedChars(params.sessionKey) > FLUSH_MIN_GROWTH_CHARS) {
+  if (
+    chars > FLUSH_TRIGGER_CHARS &&
+    chars - getFlushedChars(params.sessionKey) > FLUSH_MIN_GROWTH_CHARS
+  ) {
     await runMemoryFlush(cfg.model, pruneForContext(session.items));
     setFlushedChars(params.sessionKey, chars);
   }
@@ -171,14 +179,22 @@ async function buildUserMessage(
   liveParts.push(...imageParts);
   if (liveParts.length === 0) liveParts.push({ type: "input_text", text: "[media message]" });
 
-  const persistText = [userText, ...persistNotes].filter(Boolean).join(" ").trim() || "[media message]";
+  const persistText =
+    [userText, ...persistNotes].filter(Boolean).join(" ").trim() || "[media message]";
   return { liveItem: userItemWithParts(liveParts), persistItem: userItem(persistText) };
 }
 
-async function handleSlashCommand(text: string, sessionKey: SessionKey, model: string): Promise<TurnResult | null> {
+async function handleSlashCommand(
+  text: string,
+  sessionKey: SessionKey,
+  model: string,
+): Promise<TurnResult | null> {
   if (text === "/reset") {
     resetSession(sessionKey);
-    return { replyText: "🦀 Started a fresh conversation. Your memory is unchanged.", silent: false };
+    return {
+      replyText: "🦀 Started a fresh conversation. Your memory is unchanged.",
+      silent: false,
+    };
   }
   if (text === "/dream") {
     log.info("Manual dreaming run requested via /dream.");

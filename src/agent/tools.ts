@@ -105,7 +105,8 @@ const editTool: Tool = {
     const content = fs.readFileSync(file, "utf8");
     const parts = content.split(String(args.old));
     if (parts.length === 1) return `ERROR: text to replace not found in ${args.path}.`;
-    if (parts.length > 2) return `ERROR: text to replace is not unique in ${args.path} (${parts.length - 1} matches).`;
+    if (parts.length > 2)
+      return `ERROR: text to replace is not unique in ${args.path} (${parts.length - 1} matches).`;
     fs.writeFileSync(file, parts.join(String(args.new)));
     return `Edited ${args.path}.`;
   },
@@ -186,7 +187,14 @@ const webFetchTool: Tool = {
 };
 
 /** The base tools available to a normal (main-agent) turn, minus memory/spawn. */
-export const CORE_TOOLS: Tool[] = [readTool, writeTool, editTool, execTool, messageTool, webFetchTool];
+export const CORE_TOOLS: Tool[] = [
+  readTool,
+  writeTool,
+  editTool,
+  execTool,
+  messageTool,
+  webFetchTool,
+];
 
 // --- shell runner -----------------------------------------------------------
 

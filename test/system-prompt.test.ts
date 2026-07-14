@@ -1,7 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { buildSystemPrompt } from "../src/agent/system-prompt.js";
 
-const tool = (name: string, description: string) => ({ name, description, parameters: {}, execute: async () => "" });
+const tool = (name: string, description: string) => ({
+  name,
+  description,
+  parameters: {},
+  execute: async () => "",
+});
 
 const base = {
   agentName: "Crab",
@@ -44,7 +49,10 @@ describe("buildSystemPrompt", () => {
 
   it("injects the skills catalog only when provided", () => {
     expect(buildSystemPrompt(base)).not.toContain("## Skills");
-    const p = buildSystemPrompt({ ...base, skillsCatalog: "<available_skills>X</available_skills>" });
+    const p = buildSystemPrompt({
+      ...base,
+      skillsCatalog: "<available_skills>X</available_skills>",
+    });
     expect(p).toContain("## Skills");
     expect(p).toContain("<available_skills>");
   });

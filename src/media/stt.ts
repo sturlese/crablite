@@ -14,7 +14,11 @@ export async function transcribeAudio(data: Buffer, mimetype: string): Promise<s
   try {
     const { access, accountId } = await getAccessToken();
     const form = new FormData();
-    form.append("file", new Blob([data], { type: mimetype || "audio/ogg" }), `audio.${ext(mimetype)}`);
+    form.append(
+      "file",
+      new Blob([data], { type: mimetype || "audio/ogg" }),
+      `audio.${ext(mimetype)}`,
+    );
     form.append("model", STT_MODEL);
 
     const res = await fetch(`${CODEX_BASE_URL}/audio/transcriptions`, {
@@ -28,7 +32,9 @@ export async function transcribeAudio(data: Buffer, mimetype: string): Promise<s
       body: form,
     });
     if (!res.ok) {
-      log.warn(`STT failed: HTTP ${res.status} ${(await res.text().catch(() => "")).slice(0, 200)}`);
+      log.warn(
+        `STT failed: HTTP ${res.status} ${(await res.text().catch(() => "")).slice(0, 200)}`,
+      );
       return null;
     }
     const json: any = await res.json();

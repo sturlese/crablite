@@ -28,7 +28,7 @@ export function createInboundHandler(channelId: string): (m: InboundMessage) => 
     );
   } else if (cfg.allowFrom.includes("*")) {
     log.warn(
-      "SECURITY: allowFrom is \"*\" — ANY sender who reaches this number can drive the agent " +
+      'SECURITY: allowFrom is "*" — ANY sender who reaches this number can drive the agent ' +
         "(shell, email, files). Set CRABLITE_ALLOW_FROM to your own number(s).",
     );
   }
@@ -45,7 +45,11 @@ export function createInboundHandler(channelId: string): (m: InboundMessage) => 
   }
 
   function admit(m: InboundMessage): boolean {
-    if (m.chatType === "group" && cfg.requireMentionInGroups && !isMentioned(m.text, cfg.agentName)) {
+    if (
+      m.chatType === "group" &&
+      cfg.requireMentionInGroups &&
+      !isMentioned(m.text, cfg.agentName)
+    ) {
       return false;
     }
     if (cfg.allowFrom.length === 0) return false; // fail-closed
@@ -64,7 +68,10 @@ export function createInboundHandler(channelId: string): (m: InboundMessage) => 
     chats.delete(chatId); // evict; a new message recreates it. withLock owns ordering.
 
     const last = batch[batch.length - 1]!;
-    const joined = batch.map((b) => b.text).join("\n").trim();
+    const joined = batch
+      .map((b) => b.text)
+      .join("\n")
+      .trim();
     const media = batch.flatMap((b) => b.media ?? []);
     void withLock(chatId, () => process(channelId, chatId, joined, media, last)).catch((err) =>
       log.error("turn failed", err instanceof Error ? err.message : String(err)),

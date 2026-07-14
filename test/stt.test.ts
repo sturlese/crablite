@@ -12,14 +12,22 @@ afterEach(() => {
 const login = () =>
   writeSecretFile(
     paths.codexAuthFile(),
-    JSON.stringify({ version: 1, access: "tok", refresh: "r", expires: Date.now() + 3_600_000, accountId: "acc" }),
+    JSON.stringify({
+      version: 1,
+      access: "tok",
+      refresh: "r",
+      expires: Date.now() + 3_600_000,
+      accountId: "acc",
+    }),
   );
 
 describe("stt (Codex transcription, no extra key)", () => {
   it("transcribes with the Codex credential", async () => {
     dir = tmpState();
     login();
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ text: "hola mundo" }) });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => ({ text: "hola mundo" }) });
     vi.stubGlobal("fetch", fetchMock);
     expect(await transcribeAudio(Buffer.from("audio"), "audio/ogg")).toBe("hola mundo");
     const [url, opts] = fetchMock.mock.calls[0] as [string, any];
@@ -31,7 +39,10 @@ describe("stt (Codex transcription, no extra key)", () => {
   it("returns null on a failed transcription", async () => {
     dir = tmpState();
     login();
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 400, text: async () => "bad" }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 400, text: async () => "bad" }),
+    );
     expect(await transcribeAudio(Buffer.from("x"), "audio/ogg")).toBe(null);
   });
 

@@ -11,9 +11,43 @@ import { recordRecall, keyFor } from "./recall.js";
 import type { Tool } from "../agent/tool.js";
 
 const STOPWORDS = new Set([
-  "the", "a", "an", "and", "or", "of", "to", "in", "on", "for", "is", "are", "was", "were",
-  "with", "as", "at", "by", "it", "this", "that", "be", "do", "does", "i", "you", "he", "she",
-  "we", "they", "my", "me", "what", "when", "who", "how", "about",
+  "the",
+  "a",
+  "an",
+  "and",
+  "or",
+  "of",
+  "to",
+  "in",
+  "on",
+  "for",
+  "is",
+  "are",
+  "was",
+  "were",
+  "with",
+  "as",
+  "at",
+  "by",
+  "it",
+  "this",
+  "that",
+  "be",
+  "do",
+  "does",
+  "i",
+  "you",
+  "he",
+  "she",
+  "we",
+  "they",
+  "my",
+  "me",
+  "what",
+  "when",
+  "who",
+  "how",
+  "about",
 ]);
 
 function tokenize(text: string): string[] {
@@ -23,7 +57,14 @@ function tokenize(text: string): string[] {
     .filter((t) => t.length >= 2 && !STOPWORDS.has(t));
 }
 
-type Block = { file: string; rel: string; startLine: number; endLine: number; text: string; isDaily: boolean };
+type Block = {
+  file: string;
+  rel: string;
+  startLine: number;
+  endLine: number;
+  text: string;
+  isDaily: boolean;
+};
 
 function collectBlocks(): Block[] {
   const ws = paths.workspace();
@@ -120,7 +161,12 @@ export const memorySearchTool: Tool = {
         const key = keyFor(snippet);
         if (!recorded.has(key)) {
           recorded.add(key);
-          recordRecall({ snippet, source: `${b.rel}:${b.startLine}-${b.endLine}`, score: s, query });
+          recordRecall({
+            snippet,
+            source: `${b.rel}:${b.startLine}-${b.endLine}`,
+            score: s,
+            query,
+          });
         }
       }
     }

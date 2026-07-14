@@ -2,7 +2,10 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 
 vi.mock("../src/codex/auth.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../src/codex/auth.js")>();
-  return { ...actual, getAccessToken: vi.fn().mockResolvedValue({ access: "tok", accountId: "acc" }) };
+  return {
+    ...actual,
+    getAccessToken: vi.fn().mockResolvedValue({ access: "tok", accountId: "acc" }),
+  };
 });
 
 import { callModel } from "../src/codex/responses.js";
@@ -25,10 +28,17 @@ describe("callModel (Codex Responses API)", () => {
     const events = [
       { event: "response.output_text.delta", data: { delta: "Hel" } },
       { event: "response.output_text.delta", data: { delta: "lo" } },
-      { event: "response.output_item.done", data: { item: { type: "function_call", name: "read", arguments: '{"p":1}', call_id: "c1" } } },
+      {
+        event: "response.output_item.done",
+        data: {
+          item: { type: "function_call", name: "read", arguments: '{"p":1}', call_id: "c1" },
+        },
+      },
       { event: "response.completed", data: {} },
     ];
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, statusText: "OK", body: sseStream(events) });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, status: 200, statusText: "OK", body: sseStream(events) });
     vi.stubGlobal("fetch", fetchMock);
 
     const deltas: string[] = [];
@@ -54,17 +64,32 @@ describe("callModel (Codex Responses API)", () => {
   it("throws on a non-ok HTTP response", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({ ok: false, status: 429, statusText: "Too Many", body: null, text: async () => "rate limited" }),
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 429,
+        statusText: "Too Many",
+        body: null,
+        text: async () => "rate limited",
+      }),
     );
-    await expect(callModel({ model: "m", instructions: "i", input: [], tools: [] })).rejects.toThrow(/failed/);
+    await expect(
+      callModel({ model: "m", instructions: "i", input: [], tools: [] }),
+    ).rejects.toThrow(/failed/);
   });
 
   it("surfaces a model error event", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({ ok: true, status: 200, statusText: "OK", body: sseStream([{ event: "response.failed", data: { error: { message: "boom" } } }]) }),
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        body: sseStream([{ event: "response.failed", data: { error: { message: "boom" } } }]),
+      }),
     );
-    await expect(callModel({ model: "m", instructions: "i", input: [], tools: [] })).rejects.toThrow(/boom/);
+    await expect(
+      callModel({ model: "m", instructions: "i", input: [], tools: [] }),
+    ).rejects.toThrow(/boom/);
   });
 
   it("surfaces the error nested under response for a real response.failed event", async () => {
@@ -77,19 +102,34 @@ describe("callModel (Codex Responses API)", () => {
         status: 200,
         statusText: "OK",
         body: sseStream([
-          { event: "response.failed", data: { type: "response.failed", response: { error: { code: "rate_limit_exceeded", message: "Rate limit reached" } } } },
+          {
+            event: "response.failed",
+            data: {
+              type: "response.failed",
+              response: { error: { code: "rate_limit_exceeded", message: "Rate limit reached" } },
+            },
+          },
         ]),
       }),
     );
-    await expect(callModel({ model: "m", instructions: "i", input: [], tools: [] })).rejects.toThrow(/Rate limit reached/);
+    await expect(
+      callModel({ model: "m", instructions: "i", input: [], tools: [] }),
+    ).rejects.toThrow(/Rate limit reached/);
   });
 
   it("surfaces a top-level error event message", async () => {
     // A standalone `error` event keeps the message at the top level.
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({ ok: true, status: 200, statusText: "OK", body: sseStream([{ event: "error", data: { type: "error", message: "stream broke" } }]) }),
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        body: sseStream([{ event: "error", data: { type: "error", message: "stream broke" } }]),
+      }),
     );
-    await expect(callModel({ model: "m", instructions: "i", input: [], tools: [] })).rejects.toThrow(/stream broke/);
+    await expect(
+      callModel({ model: "m", instructions: "i", input: [], tools: [] }),
+    ).rejects.toThrow(/stream broke/);
   });
 });
