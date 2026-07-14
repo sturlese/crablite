@@ -115,6 +115,7 @@ async function process(
       chatReply: async (t: string) => {
         await last.reply(t);
       },
+      chatSendFile: last.sendFile ? async (f) => last.sendFile!(f) : undefined,
     });
     if (!result.silent && result.replyText) {
       await last.reply(result.replyText);

@@ -7,6 +7,7 @@ import path from "node:path";
 import type { Tool } from "./tool.js";
 import { resolveInside, resolveReadable } from "../paths.js";
 import { safeFetchText } from "../net/safe-fetch.js";
+import { guessMimetype, formatSize, MAX_FILE_BYTES } from "../media/files.js";
 
 const MAX_OUTPUT_CHARS = 100_000;
 const MAX_READ_BYTES = MAX_OUTPUT_CHARS * 4; // hard cap before we even buffer a file
@@ -156,6 +157,47 @@ const messageTool: Tool = {
   },
 };
 
+const sendFileTool: Tool = {
+  name: "send_file",
+  description:
+    "Send a file from the workspace to the current chat — images, audio, PDFs, CSVs, any document " +
+    "(e.g. something saved to inbox/, an export you produced with exec, or a memory file). " +
+    "Optional caption. Files outside the workspace cannot be sent.",
+  parameters: {
+    type: "object",
+    properties: {
+      path: {
+        type: "string",
+        description: "Workspace-relative file path (e.g. inbox/report.pdf).",
+      },
+      caption: { type: "string", description: "Optional caption shown with the file." },
+    },
+    required: ["path"],
+    additionalProperties: false,
+  },
+  async execute(args, ctx) {
+    if (!ctx.chatSendFile) {
+      return "This channel cannot receive files; describe the content instead.";
+    }
+    const file = resolveInside(ctx.workspaceDir, String(args.path));
+    if (!fs.existsSync(file) || !fs.statSync(file).isFile()) {
+      return `ERROR: file not found: ${args.path}`;
+    }
+    const size = fs.statSync(file).size;
+    if (size > MAX_FILE_BYTES) {
+      return `ERROR: ${args.path} is ${formatSize(size)}, over the ${formatSize(MAX_FILE_BYTES)} send cap.`;
+    }
+    const filename = path.basename(file);
+    await ctx.chatSendFile({
+      data: fs.readFileSync(file),
+      mimetype: guessMimetype(file),
+      filename,
+      caption: args.caption ? String(args.caption) : undefined,
+    });
+    return `Sent ${filename} (${formatSize(size)}).`;
+  },
+};
+
 const webFetchTool: Tool = {
   name: "web_fetch",
   description: "Fetch a URL and return its text content (HTML tags stripped). For quick lookups.",
@@ -193,6 +235,7 @@ export const CORE_TOOLS: Tool[] = [
   editTool,
   execTool,
   messageTool,
+  sendFileTool,
   webFetchTool,
 ];
 

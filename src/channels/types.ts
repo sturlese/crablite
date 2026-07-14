@@ -10,16 +10,26 @@ export type InboundMedia = {
   filename?: string;
 };
 
+/** A file the agent sends to a chat (image, audio, or generic document). */
+export type OutboundFile = {
+  data: Buffer;
+  mimetype: string;
+  filename: string;
+  caption?: string;
+};
+
 export type InboundMessage = {
   id: string;
   chatId: string;
   senderId: string;
   chatType: ChatType;
   text: string;
-  /** Attached media (images to see, voice notes to transcribe). */
+  /** Attached media (images to see, voice notes to transcribe, documents to save). */
   media?: InboundMedia[];
   /** Send a reply back to this chat. */
   reply(text: string): Promise<{ messageId: string }>;
+  /** Send a file back to this chat (channels that can't, omit it). */
+  sendFile?(file: OutboundFile): Promise<void>;
 };
 
 export interface Channel {
@@ -28,5 +38,7 @@ export interface Channel {
   start(onInbound: (m: InboundMessage) => Promise<void>): Promise<void>;
   /** Proactively send a message to a chat (used by the heartbeat). */
   send(chatId: string, text: string): Promise<void>;
+  /** Proactively send a file to a chat (used by routines delivering reports). */
+  sendFile(chatId: string, file: OutboundFile): Promise<void>;
   stop(): Promise<void>;
 }

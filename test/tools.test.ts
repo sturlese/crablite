@@ -119,6 +119,37 @@ describe("core tools", () => {
     expect(sent).toEqual(["hi"]);
   });
 
+  it("send_file delivers a workspace file with mimetype, filename and caption", async () => {
+    const ctx = setup();
+    fs.writeFileSync(path.join(ctx.workspaceDir, "report.csv"), "a,b\n1,2\n");
+    const sent: any[] = [];
+    const out = await tool("send_file").execute(
+      { path: "report.csv", caption: "your report" },
+      { ...ctx, chatSendFile: async (f: any) => void sent.push(f) },
+    );
+    expect(out).toMatch(/Sent report\.csv/);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].mimetype).toBe("text/csv");
+    expect(sent[0].filename).toBe("report.csv");
+    expect(sent[0].caption).toBe("your report");
+    expect(sent[0].data.toString()).toContain("a,b");
+  });
+
+  it("send_file refuses without a channel, outside the workspace, and over the cap", async () => {
+    const ctx = setup();
+    fs.writeFileSync(path.join(ctx.workspaceDir, "f.txt"), "x");
+    expect(await tool("send_file").execute({ path: "f.txt" }, ctx)).toMatch(/cannot receive files/);
+
+    const sendCtx = { ...ctx, chatSendFile: async () => {} };
+    await expect(tool("send_file").execute({ path: "/etc/hostname" }, sendCtx)).rejects.toThrow(
+      /outside/,
+    );
+    expect(await tool("send_file").execute({ path: "nope.bin" }, sendCtx)).toMatch(/not found/);
+
+    fs.writeFileSync(path.join(ctx.workspaceDir, "big.bin"), Buffer.alloc(21 * 1024 * 1024));
+    expect(await tool("send_file").execute({ path: "big.bin" }, sendCtx)).toMatch(/send cap/);
+  });
+
   it("web_fetch fences output as untrusted and blocks SSRF", async () => {
     const ctx = setup();
     vi.stubGlobal(
