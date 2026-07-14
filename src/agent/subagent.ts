@@ -60,10 +60,11 @@ export function makeSpawnTool(opts: {
       if (!task) return "ERROR: empty task.";
       log.info(`spawn_subagent (depth ${childDepth})`, String(args.label ?? task.slice(0, 60)));
 
-      // Children get memory + core tools, but not `message` (no user), and only
-      // get `spawn_subagent` if another level of depth remains.
+      // Children get memory + core tools, but not the chat-facing ones
+      // (`message`, `send_file` — no user), and only get `spawn_subagent` if
+      // another level of depth remains.
       const childTools: Tool[] = [
-        ...CORE_TOOLS.filter((t) => t.name !== "message"),
+        ...CORE_TOOLS.filter((t) => t.name !== "message" && t.name !== "send_file"),
         ...MEMORY_TOOLS,
       ];
       if (childDepth < opts.maxDepth) childTools.push(makeSpawnTool(opts));

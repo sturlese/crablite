@@ -6,14 +6,15 @@ import qrcode from "qrcode-terminal";
 import { paths, ensureDir } from "../paths.js";
 import { makeBaileysLogger, log } from "../logger.js";
 import { CRABLITE_VERSION } from "../version.js";
-import type { Channel, InboundMessage, InboundMedia } from "./types.js";
+import { MAX_FILE_BYTES } from "../media/files.js";
+import type { Channel, InboundMessage, InboundMedia, OutboundFile } from "./types.js";
 
 // Robust interop across Baileys' CJS/ESM builds.
 const makeWASocket: any = (Baileys as any).default ?? (Baileys as any).makeWASocket;
 const { useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason, downloadMediaMessage } =
   Baileys as any;
 
-const MEDIA_MAX_BYTES = 20 * 1024 * 1024; // don't download attachments larger than this
+const MEDIA_MAX_BYTES = MAX_FILE_BYTES; // don't download attachments larger than this
 
 export class WhatsAppChannel implements Channel {
   id = "whatsapp";
@@ -41,6 +42,24 @@ export class WhatsAppChannel implements Channel {
   async send(chatId: string, text: string): Promise<void> {
     if (!this.sock) throw new Error("WhatsApp is not connected.");
     await this.sock.sendMessage(chatId, { text });
+  }
+
+  /** Send a file, typed by mimetype (image/audio/video render natively). */
+  async sendFile(chatId: string, file: OutboundFile): Promise<void> {
+    if (!this.sock) throw new Error("WhatsApp is not connected.");
+    const payload = file.mimetype.startsWith("image/")
+      ? { image: file.data, caption: file.caption }
+      : file.mimetype.startsWith("audio/")
+        ? { audio: file.data, mimetype: file.mimetype }
+        : file.mimetype.startsWith("video/")
+          ? { video: file.data, caption: file.caption }
+          : {
+              document: file.data,
+              mimetype: file.mimetype,
+              fileName: file.filename,
+              caption: file.caption,
+            };
+    await this.sock.sendMessage(chatId, payload);
   }
 
   private async connect(): Promise<void> {
@@ -119,14 +138,25 @@ export class WhatsAppChannel implements Channel {
         const sent = await this.sock.sendMessage(remoteJid, { text: t });
         return { messageId: String(sent?.key?.id ?? "") };
       },
+      sendFile: (file: OutboundFile) => this.sendFile(remoteJid, file),
     };
     await this.onInbound?.(msg);
   }
 
-  /** Download inbound images and voice notes (only the kinds we actually use). */
+  /** Download inbound images, voice notes and documents (the kinds we use). */
   private async extractMedia(m: any): Promise<InboundMedia[] | undefined> {
-    const message = m.message ?? {};
-    const kind = message.imageMessage ? "image" : message.audioMessage ? "audio" : undefined;
+    let message = m.message ?? {};
+    // Documents sent WITH a caption arrive wrapped one level deeper.
+    if (message.documentWithCaptionMessage?.message?.documentMessage) {
+      message = message.documentWithCaptionMessage.message;
+    }
+    const kind = message.imageMessage
+      ? "image"
+      : message.audioMessage
+        ? "audio"
+        : message.documentMessage
+          ? "document"
+          : undefined;
     if (!kind) return undefined;
     const node = message[`${kind}Message`];
     // Refuse oversized attachments before downloading (bounds a bandwidth/memory DoS).
@@ -146,8 +176,14 @@ export class WhatsAppChannel implements Channel {
         log.warn(`Discarding ${kind} media: downloaded ${buf.length} bytes exceeds cap.`);
         return undefined;
       }
-      const mimetype = node?.mimetype ?? (kind === "image" ? "image/jpeg" : "audio/ogg");
-      return [{ kind, data: buf, mimetype }];
+      const mimetype =
+        node?.mimetype ??
+        (kind === "image"
+          ? "image/jpeg"
+          : kind === "audio"
+            ? "audio/ogg"
+            : "application/octet-stream");
+      return [{ kind, data: buf, mimetype, filename: node?.fileName ?? undefined }];
     } catch (e) {
       log.warn("media download failed:", String(e));
       return undefined;
@@ -162,6 +198,7 @@ function extractText(message: any): string {
     message.imageMessage?.caption ??
     message.videoMessage?.caption ??
     message.documentMessage?.caption ??
+    message.documentWithCaptionMessage?.message?.documentMessage?.caption ??
     ""
   ).trim();
 }

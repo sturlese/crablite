@@ -4,6 +4,7 @@
 // so those modules can depend on the contract without pulling in exec/shell.
 
 import type { ToolSchema } from "../codex/responses.js";
+import type { OutboundFile } from "../channels/types.js";
 
 export type ToolContext = {
   workspaceDir: string;
@@ -11,6 +12,8 @@ export type ToolContext = {
   chatId?: string;
   chatType?: "direct" | "group";
   chatReply?: (text: string) => Promise<void>;
+  /** Send a file to the current chat (absent on channels that can't). */
+  chatSendFile?: (file: OutboundFile) => Promise<void>;
   signal?: AbortSignal;
 };
 

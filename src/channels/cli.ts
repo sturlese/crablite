@@ -51,6 +51,12 @@ async function runOneTurn(agentName: string, text: string): Promise<void> {
       chatReply: async (t: string) => {
         process.stdout.write(`\n${agentName} › ${t}\n`);
       },
+      // No real file transport in a terminal; print what would have been sent.
+      chatSendFile: async (f) => {
+        process.stdout.write(
+          `\n${agentName} › [file] ${f.filename} (${f.mimetype})${f.caption ? ` — "${f.caption}"` : ""}\n`,
+        );
+      },
     });
     if (!res.silent && res.replyText) {
       process.stdout.write(`\n${agentName} › ${res.replyText}\n`);
