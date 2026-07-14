@@ -3,7 +3,7 @@
 # 🦀 crablite
 
 <p>
-  <img src="https://img.shields.io/badge/node-%3E%3D20-339933?logo=nodedotjs&logoColor=white" alt="Node >= 20">&nbsp;<img src="https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white" alt="TypeScript">&nbsp;<img src="https://img.shields.io/badge/tests-138%20passing-2ea44f" alt="138 tests passing">&nbsp;<img src="https://img.shields.io/badge/coverage-~91%25-2ea44f" alt="~91% coverage">&nbsp;<img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license">&nbsp;<img src="https://img.shields.io/badge/inspired%20by-OpenClaw-e8543f" alt="inspired by OpenClaw">
+  <img src="https://img.shields.io/badge/node-%3E%3D20-339933?logo=nodedotjs&logoColor=white" alt="Node >= 20">&nbsp;<img src="https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white" alt="TypeScript">&nbsp;<img src="https://img.shields.io/badge/tests-146%20passing-2ea44f" alt="146 tests passing">&nbsp;<img src="https://img.shields.io/badge/coverage-~91%25-2ea44f" alt="~91% coverage">&nbsp;<img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license">&nbsp;<img src="https://img.shields.io/badge/inspired%20by-OpenClaw-e8543f" alt="inspired by OpenClaw">
 </p>
 
 </div>
@@ -41,6 +41,9 @@ files you can read in an afternoon — not a 14,000‑file monorepo.
 - **Files flow both ways.** Send it a **document** (a PDF invoice, a CSV) and it lands in the
   workspace `inbox/` — the bundled **pdf** skill reads it. Ask for a file and it **sends it back**
   (`send_file`): inbox documents, exports it produced, even a weekly report from a routine.
+- **It follows the conversation.** Reply-quotes reach the model (*"what about this?"* quoting an old
+  message actually carries that message), and in groups every message is attributed by sender name,
+  so it knows who said what and who it's talking to.
 - **Remembers recent days.** A fresh conversation is seeded with the last couple of days of notes, so
   it already knows what happened without you having to remind it.
 - **WhatsApp first, CLI for dev.** Chat with it on WhatsApp; debug it in your terminal — same code path.

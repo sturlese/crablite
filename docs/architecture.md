@@ -54,7 +54,7 @@ A map of the code and how a message flows through it.
 | `channels/types.ts` | `Channel` + `InboundMessage` interfaces. |
 | `channels/whatsapp.ts` | Baileys adapter: QR login, `messages.upsert`, send, reconnect. |
 | `channels/cli.ts` | Readline REPL exercising the same `runTurn`. |
-| `handle.ts` | Shared inbound seam: allowlist, group mention gating, dedupe, per‑chat debounce + serialization. |
+| `handle.ts` | Shared inbound seam: allowlist, group mention gating, dedupe, per‑chat debounce + serialization; renders sender names (groups) and reply‑quotes for the model. |
 | `dreaming-cron.ts` | Nightly scheduler for `runDreaming`. |
 | `agent/reminders.ts` | Reminder store + `schedule_reminder` tool — crablite's "commitments". |
 | `agent/routines.ts` | Routine store: recurring schedules (daily/weekly/every), local time, next-run computation. |
@@ -65,7 +65,8 @@ A map of the code and how a message flows through it.
 
 ## Request lifecycle
 
-1. A channel produces an `InboundMessage` (`chatId`, `senderId`, `chatType`, `text`, `reply()`).
+1. A channel produces an `InboundMessage` (`chatId`, `senderId`, `senderName`, `chatType`, `text`,
+   `quotedText` — the message being replied to, or a media placeholder — plus `reply()`/`sendFile()`).
 2. `handle.ts` admits it (allowlist + group mention), dedupes by id, debounces rapid messages, and
    serializes per chat, then calls `runTurn`.
 3. `runTurn` (`agent/runner.ts`):
