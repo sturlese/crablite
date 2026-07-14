@@ -69,7 +69,8 @@ export function createInboundHandler(channelId: string): (m: InboundMessage) => 
 
     const last = batch[batch.length - 1]!;
     const joined = batch
-      .map((b) => b.text)
+      .map((b) => formatForModel(b))
+      .filter(Boolean)
       .join("\n")
       .trim();
     const media = batch.flatMap((b) => b.media ?? []);
@@ -96,6 +97,19 @@ export function createInboundHandler(channelId: string): (m: InboundMessage) => 
   };
 }
 
+/**
+ * Render one inbound message for the model: sender attribution in groups
+ * (several people share the chat) and the quoted excerpt when it replies to
+ * an earlier message — otherwise "what about this?" arrives with no "this".
+ */
+export function formatForModel(m: InboundMessage): string {
+  const name = m.chatType === "group" && m.senderName ? m.senderName : "";
+  const quote = m.quotedText ? `replying to "${m.quotedText}"` : "";
+  const prefix =
+    name && quote ? `[${name}, ${quote}]: ` : name ? `[${name}]: ` : quote ? `[${quote}] ` : "";
+  return `${prefix}${m.text}`.trim();
+}
+
 async function process(
   channelId: string,
   chatId: string,
@@ -112,6 +126,7 @@ async function process(
       channel: channelId,
       chatType: last.chatType,
       chatId,
+      senderName: last.senderName,
       chatReply: async (t: string) => {
         await last.reply(t);
       },

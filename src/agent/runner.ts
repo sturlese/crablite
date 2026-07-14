@@ -50,6 +50,8 @@ export async function runTurn(params: {
   channel: string;
   chatType: "direct" | "group";
   chatId?: string;
+  /** Display name of the person in this chat (direct chats), for the prompt. */
+  senderName?: string;
   media?: InboundMedia[];
   chatReply: (text: string) => Promise<void>;
   chatSendFile?: (file: OutboundFile) => Promise<void>;
@@ -114,6 +116,7 @@ export async function runTurn(params: {
     hasMemory: true,
     channel: params.channel,
     chatType: params.chatType,
+    senderName: params.senderName,
   });
 
   const result = await runAgentLoop({

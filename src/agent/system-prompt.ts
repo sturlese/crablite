@@ -16,6 +16,7 @@ export function buildSystemPrompt(params: {
   hasMemory: boolean;
   channel: string;
   chatType: "direct" | "group";
+  senderName?: string;
 }): string {
   const sections: string[] = [];
 
@@ -55,8 +56,12 @@ export function buildSystemPrompt(params: {
       "- If a message does not need a reply from you (e.g. a group message not addressed to you,",
       "  or a bare acknowledgement), output EXACTLY `NO_REPLY` and nothing else.",
       params.chatType === "group"
-        ? "- You are in a GROUP chat: only respond when addressed or clearly relevant; otherwise `NO_REPLY`."
+        ? "- You are in a GROUP chat: messages are prefixed with the sender's name like `[Name]:` —" +
+          "\n  use it to know who says what and address people naturally. Only respond when addressed" +
+          "\n  or clearly relevant; otherwise `NO_REPLY`."
         : "- You are in a DIRECT chat: you should normally reply.",
+      '- A prefix like `[replying to "…"]` means the user is quoting an earlier message — that',
+      "  excerpt is what they are referring to.",
     ].join("\n"),
   );
 
@@ -104,9 +109,11 @@ export function buildSystemPrompt(params: {
 
   // 8. Runtime footer
   const now = new Date();
+  const talkingTo =
+    params.chatType === "direct" && params.senderName ? ` · Talking to: ${params.senderName}` : "";
   sections.push(
     `## Runtime\n\nDate: ${todayStamp()} ${now.toTimeString().slice(0, 5)} · ` +
-      `Channel: ${params.channel} · Model: ${params.model}`,
+      `Channel: ${params.channel} · Model: ${params.model}${talkingTo}`,
   );
 
   return sections.join("\n\n");
