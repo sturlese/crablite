@@ -16,6 +16,7 @@ import { paths } from "./paths.js";
 import { loadConfig } from "./config.js";
 import { runTurn } from "./agent/runner.js";
 import { sessionKeyFor } from "./session/store.js";
+import { withTypingIndicator } from "./handle.js";
 import { withLock } from "./util/lock.js";
 import { dueReminders, markDelivered, type Reminder } from "./agent/reminders.js";
 import { advanceRoutine, describeSchedule, dueRoutines, type Routine } from "./agent/routines.js";
@@ -28,6 +29,7 @@ export type HeartbeatChannel = {
   id: string;
   send: (chatId: string, text: string) => Promise<void>;
   sendFile?: (chatId: string, file: OutboundFile) => Promise<void>;
+  sendTyping?: (chatId: string, on: boolean) => Promise<void>;
 };
 
 export function startHeartbeat(channel: HeartbeatChannel): void {
@@ -71,18 +73,20 @@ async function deliverDueReminders(channel: HeartbeatChannel): Promise<void> {
 
 async function deliverReminder(channel: HeartbeatChannel, r: Reminder): Promise<void> {
   // Serialize with any inbound turn for the same chat.
-  const res = await withLock(r.chatId, () =>
-    runTurn({
-      sessionKey: sessionKeyFor(channel.id, r.chatType, r.chatId),
-      userText:
-        `[Proactive reminder] Earlier you set a reminder to bring this up now: "${r.text}". ` +
-        `Message the user about it naturally and concisely, in character.`,
-      channel: channel.id,
-      chatType: r.chatType,
-      chatId: r.chatId,
-      chatReply: async (t) => channel.send(r.chatId, t),
-      chatSendFile: fileSender(channel, r.chatId),
-    }),
+  const res = await withTypingIndicator(typingFor(channel, r.chatId), () =>
+    withLock(r.chatId, () =>
+      runTurn({
+        sessionKey: sessionKeyFor(channel.id, r.chatType, r.chatId),
+        userText:
+          `[Proactive reminder] Earlier you set a reminder to bring this up now: "${r.text}". ` +
+          `Message the user about it naturally and concisely, in character.`,
+        channel: channel.id,
+        chatType: r.chatType,
+        chatId: r.chatId,
+        chatReply: async (t) => channel.send(r.chatId, t),
+        chatSendFile: fileSender(channel, r.chatId),
+      }),
+    ),
   );
   if (!res.silent && res.replyText) await channel.send(r.chatId, res.replyText);
   else if (res.silent) await channel.send(r.chatId, `⏰ ${r.text}`); // ensure the reminder lands
@@ -95,6 +99,15 @@ function fileSender(
 ): ((file: OutboundFile) => Promise<void>) | undefined {
   const sendFile = channel.sendFile?.bind(channel);
   return sendFile ? (file) => sendFile(chatId, file) : undefined;
+}
+
+/** Bind the channel's typing indicator (if any) to one chat. */
+function typingFor(
+  channel: HeartbeatChannel,
+  chatId: string,
+): ((on: boolean) => Promise<void>) | undefined {
+  const sendTyping = channel.sendTyping?.bind(channel);
+  return sendTyping ? (on) => sendTyping(chatId, on) : undefined;
 }
 
 // --- recurring routines -------------------------------------------------------
@@ -115,19 +128,21 @@ async function runDueRoutines(channel: HeartbeatChannel): Promise<void> {
 async function runRoutine(channel: HeartbeatChannel, r: Routine): Promise<void> {
   log.info(`Running routine [${r.id}] (${describeSchedule(r.schedule)}).`);
   // Serialize with any inbound turn for the same chat.
-  const res = await withLock(r.chatId, () =>
-    runTurn({
-      sessionKey: sessionKeyFor(channel.id, r.chatType, r.chatId),
-      userText:
-        `[Scheduled routine ${r.id} — ${describeSchedule(r.schedule)}] Your standing instruction: ` +
-        `"${r.text}". Do it now. If it is a check and there is genuinely nothing worth telling ` +
-        `the user, reply exactly NO_REPLY.`,
-      channel: channel.id,
-      chatType: r.chatType,
-      chatId: r.chatId,
-      chatReply: async (t) => channel.send(r.chatId, t),
-      chatSendFile: fileSender(channel, r.chatId),
-    }),
+  const res = await withTypingIndicator(typingFor(channel, r.chatId), () =>
+    withLock(r.chatId, () =>
+      runTurn({
+        sessionKey: sessionKeyFor(channel.id, r.chatType, r.chatId),
+        userText:
+          `[Scheduled routine ${r.id} — ${describeSchedule(r.schedule)}] Your standing instruction: ` +
+          `"${r.text}". Do it now. If it is a check and there is genuinely nothing worth telling ` +
+          `the user, reply exactly NO_REPLY.`,
+        channel: channel.id,
+        chatType: r.chatType,
+        chatId: r.chatId,
+        chatReply: async (t) => channel.send(r.chatId, t),
+        chatSendFile: fileSender(channel, r.chatId),
+      }),
+    ),
   );
   // Routines respect silence — no fallback send (see module header).
   if (!res.silent && res.replyText) await channel.send(r.chatId, res.replyText);
@@ -167,20 +182,22 @@ async function maybeDailyCheckIn(channel: HeartbeatChannel): Promise<void> {
   const guidance = readHeartbeatGuidance();
   log.info("Running daily heartbeat check-in.");
   try {
-    const res = await withLock(chatId, () =>
-      runTurn({
-        sessionKey: sessionKeyFor(channel.id, "direct", chatId),
-        userText:
-          `[Heartbeat] It's your scheduled check-in. Guidance:\n${guidance}\n\n` +
-          `Decide if there is anything genuinely worth proactively telling the user right now ` +
-          `(due follow-ups, time-sensitive facts from memory). If yes, send a brief, useful message. ` +
-          `If there is nothing worth interrupting them for, reply exactly NO_REPLY.`,
-        channel: channel.id,
-        chatType: "direct",
-        chatId,
-        chatReply: async (t) => channel.send(chatId, t),
-        chatSendFile: fileSender(channel, chatId),
-      }),
+    const res = await withTypingIndicator(typingFor(channel, chatId), () =>
+      withLock(chatId, () =>
+        runTurn({
+          sessionKey: sessionKeyFor(channel.id, "direct", chatId),
+          userText:
+            `[Heartbeat] It's your scheduled check-in. Guidance:\n${guidance}\n\n` +
+            `Decide if there is anything genuinely worth proactively telling the user right now ` +
+            `(due follow-ups, time-sensitive facts from memory). If yes, send a brief, useful message. ` +
+            `If there is nothing worth interrupting them for, reply exactly NO_REPLY.`,
+          channel: channel.id,
+          chatType: "direct",
+          chatId,
+          chatReply: async (t) => channel.send(chatId, t),
+          chatSendFile: fileSender(channel, chatId),
+        }),
+      ),
     );
     if (!res.silent && res.replyText) await channel.send(chatId, res.replyText);
   } catch (err) {
