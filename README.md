@@ -3,7 +3,7 @@
 # 🦀 crablite
 
 <p>
-  <img src="https://img.shields.io/badge/node-%3E%3D20-339933?logo=nodedotjs&logoColor=white" alt="Node >= 20">&nbsp;<img src="https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white" alt="TypeScript">&nbsp;<img src="https://img.shields.io/badge/tests-113%20passing-2ea44f" alt="113 tests passing">&nbsp;<img src="https://img.shields.io/badge/coverage-~91%25-2ea44f" alt="~91% coverage">&nbsp;<img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license">&nbsp;<img src="https://img.shields.io/badge/inspired%20by-OpenClaw-e8543f" alt="inspired by OpenClaw">
+  <img src="https://img.shields.io/badge/node-%3E%3D20-339933?logo=nodedotjs&logoColor=white" alt="Node >= 20">&nbsp;<img src="https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white" alt="TypeScript">&nbsp;<img src="https://img.shields.io/badge/tests-129%20passing-2ea44f" alt="129 tests passing">&nbsp;<img src="https://img.shields.io/badge/coverage-~91%25-2ea44f" alt="~91% coverage">&nbsp;<img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license">&nbsp;<img src="https://img.shields.io/badge/inspired%20by-OpenClaw-e8543f" alt="inspired by OpenClaw">
 </p>
 
 </div>
@@ -33,8 +33,9 @@ files you can read in an afternoon — not a 14,000‑file monorepo.
   name + description are always in context; the body is read on demand (progressive disclosure).
 - **Autonomous subagents.** The agent can call `spawn_subagent` itself to delegate a bounded task to
   a fresh, isolated child agent.
-- **Proactive, not just reactive.** It schedules reminders/follow‑ups (`schedule_reminder`) and a
-  heartbeat delivers them on its own; an optional daily check‑in can greet you with what matters.
+- **Proactive, not just reactive.** It schedules one‑shot reminders (`schedule_reminder`) **and
+  recurring routines** (`schedule_routine` — "every morning at 8, brief me"); a heartbeat runs them
+  on its own, and an optional daily check‑in can greet you with what matters.
 - **Sees and hears.** On WhatsApp it reads **images** (vision) and transcribes **voice notes** — both
   through your Codex credential, no extra key (just like OpenClaw).
 - **Remembers recent days.** A fresh conversation is seeded with the last couple of days of notes, so
@@ -110,6 +111,9 @@ Examples:
 - *"Remember that I prefer emails kept under 5 lines."* → it writes that to today's note; over time it
   gets promoted into `MEMORY.md`.
 - *"What did we decide about the Q3 budget?"* → it runs `memory_search` first, then answers.
+- *"Every weekday at 8, send me a briefing with my pending stuff."* → it calls `schedule_routine`;
+  the heartbeat runs it each morning. *"What do you have scheduled?"* → `list_schedules`;
+  *"drop the briefing"* → `cancel_schedule`.
 - *"Draft a reply to the last email from Ana and show me before sending."* → it uses the `gog` skill,
   creates a draft, and waits for your **explicit yes** before sending.
 - *"Pull the totals from the 'Sales' tab of &lt;sheet&gt; and summarize."* → `gog sheets get ... --json`.
@@ -186,14 +190,23 @@ child runs the same loop in an isolated context with its own subagent system pro
 final message to the parent, and is bounded by a depth cap (`maxSubagentDepth`, default 2). ACP and
 background/parallel children from OpenClaw are intentionally dropped.
 
-## Proactivity (reminders & heartbeat)
+## Proactivity (reminders, routines & heartbeat)
 
-crablite isn't only reactive — this is OpenClaw's "commitments → heartbeat" idea, distilled:
+crablite isn't only reactive — this is OpenClaw's "commitments → heartbeat" idea plus its **cron
+scheduler**, distilled:
 
 - When the agent commits to a follow‑up, it calls **`schedule_reminder`** (e.g. *"remind me Friday to
   send the invoice"*). The reminder is stored in `~/.crablite/reminders.json`.
-- A **heartbeat** loop checks every minute and, when a reminder is due, delivers it **on its own** —
-  it runs a short proactive turn in that chat so the message is natural and in‑character.
+- For **recurring duties** it calls **`schedule_routine`** — a standing instruction that fires
+  **daily at a time**, **weekly on a weekday**, or **every N minutes** (local time, stored in
+  `~/.crablite/routines.json`). Think OpenClaw's cron jobs / standing orders: *"every weekday at 8,
+  brief me"*, *"each Monday at 9, list unanswered emails"*, *"every 4 hours, check the server"*.
+- **`list_schedules`** and **`cancel_schedule`** let you inspect and stop anything in conversation —
+  a commitment is never a dead‑end.
+- A **heartbeat** loop checks every minute and runs whatever is due **on its own** — a short
+  proactive turn in that chat so the message is natural and in‑character. Reminders always land
+  (plain‑text fallback if the model fails); **routines respect `NO_REPLY`**, so a monitoring routine
+  that finds nothing stays quiet. Missed occurrences (e.g. downtime) are rescheduled, not replayed.
 - Optionally, set `CRABLITE_PRIMARY_CHAT` (a WhatsApp chat id) and the agent will do a **once‑daily
   check‑in** at `heartbeatHour`, guided by `workspace/HEARTBEAT.md`. By default it stays quiet
   (`NO_REPLY`) unless there's something genuinely worth telling you.
@@ -272,7 +285,9 @@ admission, reminders — mocking only the network (model/transport) and hardware
 - Reading, writing, searching and compacting memory straight from the conversation.
 - **Folder-based skills** (`SKILL.md`) with progressive disclosure and binary gating.
 - **Autonomous subagents** for delegated, well-scoped work.
-- **Proactivity**: scheduled reminders delivered on their own by a heartbeat, plus an optional daily check-in.
+- **Proactivity**: one-shot reminders and recurring routines (daily/weekly/interval) the agent
+  schedules, lists and cancels in conversation, delivered on their own by a heartbeat; plus an
+  optional daily check-in.
 - **Startup context**: the last couple of days of notes seeded into a fresh conversation.
 - **Inbound media**: images (vision) and voice notes (transcribed) — both through your Codex credential.
 - **Gmail & Google Sheets** via the `gog` skill, with draft → confirm → send for email.

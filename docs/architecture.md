@@ -57,7 +57,9 @@ A map of the code and how a message flows through it.
 | `handle.ts` | Shared inbound seam: allowlist, group mention gating, dedupe, per‑chat debounce + serialization. |
 | `dreaming-cron.ts` | Nightly scheduler for `runDreaming`. |
 | `agent/reminders.ts` | Reminder store + `schedule_reminder` tool — crablite's "commitments". |
-| `heartbeat.ts` | Proactive loop: deliver due reminders + optional daily `HEARTBEAT.md` check-in. |
+| `agent/routines.ts` | Routine store: recurring schedules (daily/weekly/every), local time, next-run computation. |
+| `agent/schedule-tools.ts` | `schedule_routine` + `list_schedules` + `cancel_schedule` (reminders and routines). |
+| `heartbeat.ts` | Proactive loop: deliver due reminders, run due routines, optional daily `HEARTBEAT.md` check-in. |
 | `media/stt.ts` | Voice-note transcription via the Codex credential (`gpt-4o-transcribe`); images use Codex directly. |
 
 ## Request lifecycle
@@ -104,11 +106,18 @@ one JSON file.
 
 Three faithful additions from OpenClaw, kept minimal:
 
-- **Proactivity** (`agent/reminders.ts` + `heartbeat.ts`): the agent calls `schedule_reminder` when it
-  commits to a follow‑up; the reminder lands in `reminders.json`; a per‑minute heartbeat delivers due
-  ones by running a short proactive turn in that chat. Optionally a once‑daily `HEARTBEAT.md`‑guided
-  check‑in to `CRABLITE_PRIMARY_CHAT`. This is OpenClaw's *commitments → heartbeat delivery* chain
-  (`src/commitments/*`, `src/infra/heartbeat-runner.ts`) with explicit (tool‑driven) extraction.
+- **Proactivity** (`agent/reminders.ts` + `agent/routines.ts` + `agent/schedule-tools.ts` +
+  `heartbeat.ts`): the agent calls `schedule_reminder` when it commits to a one‑shot follow‑up and
+  `schedule_routine` for recurring duties; both land in JSON stores (`reminders.json`,
+  `routines.json`) and a per‑minute heartbeat runs due items as short proactive turns in their chat
+  (serialized via `withLock`). Reminders always land (plain fallback); routines respect `NO_REPLY`
+  and are advanced **before** running (crash ⇒ skip to next occurrence, never double‑run; missed
+  occurrences reschedule from "now", no replay backlog). `list_schedules`/`cancel_schedule` manage
+  both. This distills OpenClaw's *commitments → heartbeat delivery* chain (`src/commitments/*`,
+  `src/infra/heartbeat-runner.ts`) **and** its cron scheduler + agent cron tool (`src/cron/*`,
+  `src/agents/tools/cron-tool.ts`): structured daily/weekly/interval schedules instead of croner
+  expressions, chat‑session execution instead of isolated sessions, no delivery/webhook machinery.
+  Optionally a once‑daily `HEARTBEAT.md`‑guided check‑in to `CRABLITE_PRIMARY_CHAT`.
 - **Media** (`channels/whatsapp.ts` `extractMedia` + `media/stt.ts` + `codex/responses.ts` image
   parts): inbound images become Responses `input_image` parts (Codex vision); voice notes are
   transcribed via the **Codex credential** at `<codex-base>/audio/transcriptions` with
@@ -148,6 +157,7 @@ Three faithful additions from OpenClaw, kept minimal:
 | `codex/auth.ts` | `extensions/openai/openai-codex-*` | Device‑code flow ported ~verbatim; no encrypted secret‑ref store / rotation. |
 | `session/store.ts` | `src/config/sessions/*` | `sessions.json` + JSONL; single account, no gateway registry. |
 | `handle.ts` | `src/auto-reply/*` | Admission + mention + dedupe + debounce + `NO_REPLY`, collapsed. |
+| `agent/routines.ts` + `agent/schedule-tools.ts` | `src/cron/*`, `src/agents/tools/cron-tool.ts` | Structured daily/weekly/interval schedules instead of croner expressions; runs in the chat session; flat tool params (same LLM-friendliness lesson). |
 | `Dockerfile` / `docker-compose.yml` | root `Dockerfile` / `docker-compose.yml` | One `node:24-slim` stage + baked `gog`; one service, one volume, one command. |
 
 ## Security posture
