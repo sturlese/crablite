@@ -32,11 +32,13 @@ A map of the code and how a message flows through it.
 |---|---|
 | `index.ts` | CLI entry: `login`, `chat`, `whatsapp`, `dream`, `doctor`. |
 | `config.ts` | Flat config (`~/.crablite/config.json`) + env overrides. |
+| `version.ts` | Client identity: version + `User-Agent`/`originator` constants. |
 | `paths.ts` | Resolves the `~/.crablite` layout; dir/secret‑file helpers; bundled resource paths. |
 | `logger.ts` | Tiny leveled logger + a silent Baileys logger (avoids a `pino` dependency). |
 | `codex/auth.ts` | Codex OAuth: device‑code + PKCE‑paste login, JWT identity, refresh, token storage. |
 | `codex/responses.ts` | Codex Responses API client: request shaping, SSE streaming, tool‑call extraction, idle timeout. |
-| `agent/tools.ts` | Tool type + registry; core tools `read/write/edit/exec/message/web_fetch`. |
+| `agent/tool.ts` | The `Tool`/`ToolContext` contract every tool provider implements. |
+| `agent/tools.ts` | The core tools `read/write/edit/exec/message/web_fetch`. |
 | `agent/loop.ts` | `runAgentLoop` — the model↔tool primitive; returns final text + new transcript items. |
 | `agent/system-prompt.ts` | Ordered system‑prompt assembly (identity→tools→policy→skills→memory→project‑context→runtime). |
 | `agent/subagent.ts` | `spawn_subagent` tool + subagent system prompt; isolated child, depth cap. |

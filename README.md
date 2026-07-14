@@ -3,7 +3,7 @@
 # 🦀 crablite
 
 <p>
-  <img src="https://img.shields.io/badge/node-%3E%3D20-339933?logo=nodedotjs&logoColor=white" alt="Node >= 20">&nbsp;<img src="https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white" alt="TypeScript">&nbsp;<img src="https://img.shields.io/badge/tests-96%20passing-2ea44f" alt="96 tests passing">&nbsp;<img src="https://img.shields.io/badge/coverage-~91%25-2ea44f" alt="~91% coverage">&nbsp;<img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license">&nbsp;<img src="https://img.shields.io/badge/inspired%20by-OpenClaw-e8543f" alt="inspired by OpenClaw">
+  <img src="https://img.shields.io/badge/node-%3E%3D20-339933?logo=nodedotjs&logoColor=white" alt="Node >= 20">&nbsp;<img src="https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white" alt="TypeScript">&nbsp;<img src="https://img.shields.io/badge/tests-113%20passing-2ea44f" alt="113 tests passing">&nbsp;<img src="https://img.shields.io/badge/coverage-~91%25-2ea44f" alt="~91% coverage">&nbsp;<img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license">&nbsp;<img src="https://img.shields.io/badge/inspired%20by-OpenClaw-e8543f" alt="inspired by OpenClaw">
 </p>
 
 </div>
@@ -251,6 +251,7 @@ runner, prune, reminders), `memory/` (workspace, search, recall, dreaming, flush
 pnpm install
 pnpm crablite chat        # run the agent in your terminal
 pnpm typecheck            # tsc --noEmit (strict)
+pnpm lint                 # Biome (lint + format check); pnpm lint:fix to apply
 pnpm test                 # Vitest unit suite
 pnpm test:coverage        # coverage report (thresholds enforced)
 ```
@@ -258,7 +259,8 @@ pnpm test:coverage        # coverage report (thresholds enforced)
 Tests live in `test/` and cover the core logic — memory & dreaming, the tool sandbox, path
 containment, the SSRF guard, the agent loop, Codex auth/refresh, the Responses SSE parser, inbound
 admission, reminders — mocking only the network (model/transport) and hardware (WhatsApp/TTY).
-**Current coverage: ~91% of lines** (≥75% enforced in CI via `vitest.config.ts`).
+**Current coverage: ~91% of lines** (≥75% enforced via `vitest.config.ts`). CI
+(`.github/workflows/ci.yml`) runs lint + typecheck + the coverage-gated suite on every PR.
 
 ---
 
