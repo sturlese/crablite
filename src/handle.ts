@@ -86,6 +86,8 @@ export function createInboundHandler(channelId: string): (m: InboundMessage) => 
       log.debug(`Ignored message from ${m.senderId} in ${m.chatId} (not admitted).`);
       return;
     }
+    // The agent is going to read it — say so (best-effort blue tick).
+    if (m.markRead) void m.markRead().catch(() => {});
     let st = chats.get(m.chatId);
     if (!st) {
       st = { pending: [] };
@@ -110,6 +112,26 @@ export function formatForModel(m: InboundMessage): string {
   return `${prefix}${m.text}`.trim();
 }
 
+/**
+ * Keep the "typing…" indicator alive while `fn` runs. WhatsApp expires the
+ * indicator after ~10s, so it is re-asserted on an interval; always cleared
+ * afterwards. No-op when the channel has no typing support.
+ */
+export async function withTypingIndicator<T>(
+  setTyping: ((on: boolean) => Promise<void>) | undefined,
+  fn: () => Promise<T>,
+): Promise<T> {
+  if (!setTyping) return fn();
+  void setTyping(true).catch(() => {});
+  const refresh = setInterval(() => void setTyping(true).catch(() => {}), 8_000);
+  try {
+    return await fn();
+  } finally {
+    clearInterval(refresh);
+    void setTyping(false).catch(() => {});
+  }
+}
+
 async function process(
   channelId: string,
   chatId: string,
@@ -119,19 +141,22 @@ async function process(
 ): Promise<void> {
   const sessionKey = sessionKeyFor(channelId, last.chatType, chatId);
   try {
-    const result = await runTurn({
-      sessionKey,
-      userText: text,
-      media,
-      channel: channelId,
-      chatType: last.chatType,
-      chatId,
-      senderName: last.senderName,
-      chatReply: async (t: string) => {
-        await last.reply(t);
-      },
-      chatSendFile: last.sendFile ? async (f) => last.sendFile!(f) : undefined,
-    });
+    const result = await withTypingIndicator(last.setTyping?.bind(last), () =>
+      runTurn({
+        sessionKey,
+        userText: text,
+        media,
+        channel: channelId,
+        chatType: last.chatType,
+        chatId,
+        senderName: last.senderName,
+        chatReply: async (t: string) => {
+          await last.reply(t);
+        },
+        chatSendFile: last.sendFile ? async (f) => last.sendFile!(f) : undefined,
+        chatReact: last.react ? async (e) => last.react!(e) : undefined,
+      }),
+    );
     if (!result.silent && result.replyText) {
       await last.reply(result.replyText);
     }

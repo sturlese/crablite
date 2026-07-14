@@ -55,6 +55,7 @@ export async function runTurn(params: {
   media?: InboundMedia[];
   chatReply: (text: string) => Promise<void>;
   chatSendFile?: (file: OutboundFile) => Promise<void>;
+  chatReact?: (emoji: string) => Promise<void>;
   signal?: AbortSignal;
 }): Promise<TurnResult> {
   const cfg = loadConfig();
@@ -131,6 +132,7 @@ export async function runTurn(params: {
       chatType: params.chatType,
       chatReply: params.chatReply,
       chatSendFile: params.chatSendFile,
+      chatReact: params.chatReact,
       signal: params.signal,
     },
     maxRounds: cfg.maxToolRounds,
