@@ -12,11 +12,12 @@ export default defineConfig({
       exclude: [
         // Entry point + thin I/O / timer-scheduler adapters that need real
         // sockets/TTY/hardware and carry no branching logic worth unit-testing.
+        // (heartbeat.ts is NOT excluded: it has real delivery/overlap logic
+        // and its own test file.)
         "src/index.ts",
         "src/channels/whatsapp.ts",
         "src/channels/cli.ts",
         "src/dreaming-cron.ts",
-        "src/heartbeat.ts",
         "src/logger.ts",
         "**/*.test.ts",
       ],
