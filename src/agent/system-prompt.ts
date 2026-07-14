@@ -2,7 +2,7 @@
 // faithful-but-collapsed version of OpenClaw's system-prompt.ts. Soul/identity/
 // memory reach the model via the "# Project Context" section.
 
-import type { Tool } from "./tools.js";
+import type { Tool } from "./tool.js";
 import type { ProjectContextFile } from "../memory/workspace.js";
 import { todayStamp } from "../memory/workspace.js";
 

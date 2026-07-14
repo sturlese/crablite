@@ -1,33 +1,12 @@
-// Tool registry + core tools. A tool is a plain object with a JSON-Schema
-// `parameters` and an async `execute`. Skills act through `exec` (e.g. `gog`),
-// exactly as in OpenClaw.
+// The core tools. Skills act through `exec` (e.g. `gog`), exactly as in
+// OpenClaw. The Tool/ToolContext contract lives in tool.ts.
 
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import type { ToolSchema } from "../codex/responses.js";
+import type { Tool } from "./tool.js";
 import { resolveInside, resolveReadable } from "../paths.js";
 import { safeFetchText } from "../net/safe-fetch.js";
-
-export type ToolContext = {
-  workspaceDir: string;
-  depth: number; // subagent depth (0 = main agent)
-  chatId?: string;
-  chatType?: "direct" | "group";
-  chatReply?: (text: string) => Promise<void>;
-  signal?: AbortSignal;
-};
-
-export type Tool = {
-  name: string;
-  description: string;
-  parameters: Record<string, unknown>;
-  execute: (args: any, ctx: ToolContext) => Promise<string>;
-};
-
-export function toSchemas(tools: Tool[]): ToolSchema[] {
-  return tools.map((t) => ({ name: t.name, description: t.description, parameters: t.parameters }));
-}
 
 const MAX_OUTPUT_CHARS = 100_000;
 const MAX_READ_BYTES = MAX_OUTPUT_CHARS * 4; // hard cap before we even buffer a file

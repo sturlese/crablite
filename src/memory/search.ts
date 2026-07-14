@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { paths, resolveInside } from "../paths.js";
 import { recordRecall, keyFor } from "./recall.js";
-import type { Tool } from "../agent/tools.js";
+import type { Tool } from "../agent/tool.js";
 
 const STOPWORDS = new Set([
   "the", "a", "an", "and", "or", "of", "to", "in", "on", "for", "is", "are", "was", "were",

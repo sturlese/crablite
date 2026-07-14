@@ -5,7 +5,8 @@
 // children are intentionally dropped for the Lite version.
 
 import { runAgentLoop } from "./loop.js";
-import { CORE_TOOLS, type Tool } from "./tools.js";
+import { CORE_TOOLS } from "./tools.js";
+import type { Tool } from "./tool.js";
 import { MEMORY_TOOLS } from "../memory/search.js";
 import { userItem } from "../codex/responses.js";
 import { log } from "../logger.js";

@@ -7,7 +7,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import { paths, writeJsonFileAtomic } from "../paths.js";
-import type { Tool } from "./tools.js";
+import type { Tool } from "./tool.js";
 
 export type Reminder = {
   id: string;
