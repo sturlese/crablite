@@ -20,6 +20,8 @@ import { startHeartbeat } from "./heartbeat.js";
 import { runDreaming } from "./memory/dreaming.js";
 import { loadSkills } from "./skills/loader.js";
 import { hasBinary } from "./skills/loader.js";
+import { pendingReminders } from "./agent/reminders.js";
+import { allRoutines } from "./agent/routines.js";
 import { log } from "./logger.js";
 
 async function main(): Promise<void> {
@@ -146,6 +148,9 @@ function cmdDoctor(): void {
   process.stdout.write(`Dreaming:    ${cfg.dreaming ? `on (≈${cfg.dreamHour}:00)` : "off"}\n`);
   process.stdout.write(
     `Codex auth:  ${auth.loggedIn ? `✅ ${auth.email ?? "logged in"}${auth.planType ? ` (${auth.planType})` : ""}, token ~${auth.expiresInMin}min` : "❌ not logged in — run `crablite login`"}\n`,
+  );
+  process.stdout.write(
+    `Schedules:   ${pendingReminders().length} reminder(s) pending, ${allRoutines().length} routine(s)\n`,
   );
   process.stdout.write(
     `gog (Google): ${hasBinary("gog") ? "✅ installed" : "❌ not found (Gmail/Sheets skill will be hidden)"}\n`,
