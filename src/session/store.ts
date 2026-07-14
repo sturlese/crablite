@@ -7,6 +7,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { paths, ensureDir, writeJsonFileAtomic } from "../paths.js";
+import type { ResponseItem } from "../codex/responses.js";
 
 type IndexEntry = {
   sessionId: string;
@@ -22,7 +23,7 @@ export type Session = {
   sessionKey: string;
   sessionId: string;
   file: string;
-  items: any[]; // Responses API input items, in order
+  items: ResponseItem[]; // Responses API input items, in order
 };
 
 function readIndex(): SessionIndex {
@@ -43,15 +44,17 @@ function transcriptFile(sessionId: string): string {
   return path.join(paths.sessionsDir(), `${sessionId}.jsonl`);
 }
 
-function loadItems(file: string): any[] {
+function loadItems(file: string): ResponseItem[] {
   if (!fs.existsSync(file)) return [];
-  const items: any[] = [];
+  const items: ResponseItem[] = [];
   for (const line of fs.readFileSync(file, "utf8").split("\n")) {
     if (!line.trim()) continue;
     try {
       const parsed = JSON.parse(line);
       if (parsed?.type === "session") continue; // header line
-      if (parsed?.item) items.push(parsed.item);
+      // Trust boundary: lines were written by appendItems, so the stored
+      // shape IS ResponseItem; corrupt lines are skipped by the catch.
+      if (parsed?.item) items.push(parsed.item as ResponseItem);
     } catch {
       /* skip corrupt line */
     }
@@ -82,7 +85,7 @@ export function loadSession(sessionKey: string): Session {
 }
 
 /** Append items to the transcript (and in-memory list) and touch the index. */
-export function appendItems(session: Session, items: any[]): void {
+export function appendItems(session: Session, items: ResponseItem[]): void {
   if (!items.length) return;
   const lines = items.map((item) => JSON.stringify({ ts: Date.now(), item }) + "\n").join("");
   fs.appendFileSync(session.file, lines);

@@ -11,16 +11,17 @@ import {
   assistantItem,
   functionCallItem,
   functionOutputItem,
+  type ResponseItem,
 } from "../codex/responses.js";
 import { toSchemas, type Tool, type ToolContext } from "./tool.js";
 import { log } from "../logger.js";
 
-export type LoopResult = { text: string; newItems: any[] };
+export type LoopResult = { text: string; newItems: ResponseItem[] };
 
 export async function runAgentLoop(params: {
   model: string;
   instructions: string;
-  input: any[];
+  input: ResponseItem[];
   tools: Tool[];
   ctx: ToolContext;
   maxRounds: number;
@@ -29,7 +30,7 @@ export async function runAgentLoop(params: {
   signal?: AbortSignal;
 }): Promise<LoopResult> {
   const workingInput = [...params.input];
-  const newItems: any[] = [];
+  const newItems: ResponseItem[] = [];
   const schemas = toSchemas(params.tools);
   let finalText = "";
 

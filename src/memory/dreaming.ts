@@ -11,7 +11,7 @@ import path from "node:path";
 import { paths, resolveInside } from "../paths.js";
 import { allEntries, markPromoted, type RecallEntry } from "./recall.js";
 import { todayStamp } from "./workspace.js";
-import { callModel } from "../codex/responses.js";
+import { callModel, userItem } from "../codex/responses.js";
 import { log } from "../logger.js";
 
 // Ranking weights (sum ≈ 1.0), mirroring OpenClaw's blend.
@@ -202,7 +202,7 @@ async function reflect(model: string | undefined, details: string[]): Promise<st
       instructions:
         "You are the agent writing a short, first-person diary line about what you learned and " +
         "moved into long-term memory today. One or two warm, reflective sentences. No lists.",
-      input: [{ type: "message", role: "user", content: [{ type: "input_text", text: details.join("\n") }] }],
+      input: [userItem(details.join("\n"))],
       tools: [],
       idleTimeoutMs: 30_000,
     });
