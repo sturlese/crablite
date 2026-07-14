@@ -26,9 +26,7 @@ function emit(level: Level, args: unknown[]): void {
   if (!shouldLog(level)) return;
   const prefix = `${ts()} ${level.toUpperCase().padEnd(5)}`;
   const stream = level === "error" || level === "warn" ? process.stderr : process.stdout;
-  const line = args
-    .map((a) => (typeof a === "string" ? a : safeStringify(a)))
-    .join(" ");
+  const line = args.map((a) => (typeof a === "string" ? a : safeStringify(a))).join(" ");
   stream.write(`${prefix} ${line}\n`);
 }
 

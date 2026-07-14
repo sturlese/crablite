@@ -1,12 +1,22 @@
 import fs from "node:fs";
 import { describe, it, expect, afterEach } from "vitest";
 import { tmpState, cleanup } from "./helpers.js";
-import { loadSession, appendItems, resetSession, getFlushedChars, setFlushedChars } from "../src/session/store.js";
+import {
+  loadSession,
+  appendItems,
+  resetSession,
+  getFlushedChars,
+  setFlushedChars,
+} from "../src/session/store.js";
 
 let dir: string;
 afterEach(() => cleanup(dir));
 
-const userMsg = (t: string) => ({ type: "message", role: "user", content: [{ type: "input_text", text: t }] });
+const userMsg = (t: string) => ({
+  type: "message",
+  role: "user",
+  content: [{ type: "input_text", text: t }],
+});
 
 describe("session store", () => {
   it("creates, persists, and resumes a session", () => {

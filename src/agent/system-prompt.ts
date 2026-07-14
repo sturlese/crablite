@@ -81,7 +81,7 @@ export function buildSystemPrompt(params: {
   }
 
   // 5b. Startup context — recent daily notes (only on a fresh conversation)
-  if (params.recentNotes && params.recentNotes.trim()) {
+  if (params.recentNotes?.trim()) {
     sections.push(
       "## Recent activity\n\n" +
         "Notes from the last couple of days, for context (the user may not have mentioned these):\n\n" +
@@ -90,7 +90,9 @@ export function buildSystemPrompt(params: {
   }
 
   // 6. Workspace
-  sections.push(`## Workspace\n\nYour working directory holds your memory and skills. Files you read/write are relative to it.`);
+  sections.push(
+    `## Workspace\n\nYour working directory holds your memory and skills. Files you read/write are relative to it.`,
+  );
 
   // 7. Project Context — the bootstrap files' contents (soul/identity/user/memory)
   if (params.projectContext.length) {

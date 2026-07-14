@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { estimateChars, pruneForContext, FLUSH_TRIGGER_CHARS, FLUSH_MIN_GROWTH_CHARS } from "../src/agent/prune.js";
+import {
+  estimateChars,
+  pruneForContext,
+  FLUSH_TRIGGER_CHARS,
+  FLUSH_MIN_GROWTH_CHARS,
+} from "../src/agent/prune.js";
 
 const msg = (role: string, text: string) => ({
   type: "message",

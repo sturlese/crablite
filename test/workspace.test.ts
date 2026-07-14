@@ -20,7 +20,15 @@ describe("workspace / memory files", () => {
   it("seeds all bootstrap files", () => {
     dir = tmpState();
     seedWorkspace();
-    for (const f of ["AGENTS.md", "SOUL.md", "IDENTITY.md", "USER.md", "MEMORY.md", "DREAMS.md", "HEARTBEAT.md"]) {
+    for (const f of [
+      "AGENTS.md",
+      "SOUL.md",
+      "IDENTITY.md",
+      "USER.md",
+      "MEMORY.md",
+      "DREAMS.md",
+      "HEARTBEAT.md",
+    ]) {
       expect(fs.existsSync(path.join(paths.workspace(), f))).toBe(true);
     }
   });

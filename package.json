@@ -19,6 +19,8 @@
     "dream": "tsx src/index.ts dream",
     "dev": "tsx watch src/index.ts chat",
     "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
@@ -29,6 +31,7 @@
     "tsx": "^4.19.2"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.3",
     "@types/node": "^22.10.0",
     "@types/qrcode-terminal": "^0.12.2",
     "@vitest/coverage-v8": "^4.1.10",

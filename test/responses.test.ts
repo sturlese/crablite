@@ -11,7 +11,11 @@ import {
 
 describe("responses item builders", () => {
   it("userItem uses input_text", () => {
-    expect(userItem("hi")).toEqual({ type: "message", role: "user", content: [{ type: "input_text", text: "hi" }] });
+    expect(userItem("hi")).toEqual({
+      type: "message",
+      role: "user",
+      content: [{ type: "input_text", text: "hi" }],
+    });
   });
 
   it("assistantItem uses output_text", () => {
@@ -25,7 +29,11 @@ describe("responses item builders", () => {
       arguments: "{}",
       call_id: "c",
     });
-    expect(functionOutputItem("c", "out")).toEqual({ type: "function_call_output", call_id: "c", output: "out" });
+    expect(functionOutputItem("c", "out")).toEqual({
+      type: "function_call_output",
+      call_id: "c",
+      output: "out",
+    });
   });
 
   it("imagePart makes a base64 data URI; userItemWithParts wraps parts", () => {

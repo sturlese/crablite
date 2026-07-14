@@ -88,7 +88,8 @@ export function loadConfig(): Config {
   const allow = parseListEnv(process.env.CRABLITE_ALLOW_FROM);
   if (allow) merged.allowFrom = allow;
   if (process.env.CRABLITE_DREAMING) merged.dreaming = parseBoolEnv(process.env.CRABLITE_DREAMING);
-  if (process.env.CRABLITE_PRIMARY_CHAT) merged.heartbeatChat = process.env.CRABLITE_PRIMARY_CHAT.trim();
+  if (process.env.CRABLITE_PRIMARY_CHAT)
+    merged.heartbeatChat = process.env.CRABLITE_PRIMARY_CHAT.trim();
 
   // Strip a provider prefix like "openai/gpt-5.5" -> "gpt-5.5".
   if (merged.model.includes("/")) merged.model = merged.model.split("/").pop()!;

@@ -20,11 +20,15 @@ describe("subagents", () => {
   it("spawn tool runs a child and returns its final message", async () => {
     vi.mocked(callModel).mockResolvedValueOnce({ text: "child result", toolCalls: [] });
     const tool = makeSpawnTool({ model: "m", maxDepth: 2, idleTimeoutMs: 1000, maxRounds: 5 });
-    expect(await tool.execute({ task: "do it" }, { workspaceDir: "/tmp", depth: 0 })).toBe("child result");
+    expect(await tool.execute({ task: "do it" }, { workspaceDir: "/tmp", depth: 0 })).toBe(
+      "child result",
+    );
   });
 
   it("refuses to spawn at the depth limit", async () => {
     const tool = makeSpawnTool({ model: "m", maxDepth: 2, idleTimeoutMs: 1000, maxRounds: 5 });
-    expect(await tool.execute({ task: "x" }, { workspaceDir: "/tmp", depth: 2 })).toMatch(/depth limit/);
+    expect(await tool.execute({ task: "x" }, { workspaceDir: "/tmp", depth: 2 })).toMatch(
+      /depth limit/,
+    );
   });
 });

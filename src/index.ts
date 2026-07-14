@@ -70,9 +70,13 @@ async function cmdLogin(): Promise<void> {
       },
       readLine: (q) => rl.question(q),
     });
-    process.stdout.write(`\n✅ Logged in${cred.email ? ` as ${cred.email}` : ""}${cred.planType ? ` (${cred.planType})` : ""}.\n`);
+    process.stdout.write(
+      `\n✅ Logged in${cred.email ? ` as ${cred.email}` : ""}${cred.planType ? ` (${cred.planType})` : ""}.\n`,
+    );
   } catch (err) {
-    process.stdout.write(`\n❌ Login failed: ${err instanceof Error ? err.message : String(err)}\n`);
+    process.stdout.write(
+      `\n❌ Login failed: ${err instanceof Error ? err.message : String(err)}\n`,
+    );
     process.exit(1);
   } finally {
     rl.close();
@@ -85,7 +89,10 @@ async function cmdChat(rest: string[]): Promise<void> {
   seedWorkspace();
   const onceIdx = rest.indexOf("--once");
   if (onceIdx !== -1) {
-    const text = rest.slice(onceIdx + 1).join(" ").trim();
+    const text = rest
+      .slice(onceIdx + 1)
+      .join(" ")
+      .trim();
     if (!text) {
       log.error('Usage: crablite chat --once "your message"');
       process.exit(1);
@@ -140,16 +147,24 @@ function cmdDoctor(): void {
   process.stdout.write(
     `Codex auth:  ${auth.loggedIn ? `✅ ${auth.email ?? "logged in"}${auth.planType ? ` (${auth.planType})` : ""}, token ~${auth.expiresInMin}min` : "❌ not logged in — run `crablite login`"}\n`,
   );
-  process.stdout.write(`gog (Google): ${hasBinary("gog") ? "✅ installed" : "❌ not found (Gmail/Sheets skill will be hidden)"}\n`);
-  process.stdout.write(`Skills:      ${skills.filter((s) => s.eligible).length} eligible / ${skills.length} found\n`);
+  process.stdout.write(
+    `gog (Google): ${hasBinary("gog") ? "✅ installed" : "❌ not found (Gmail/Sheets skill will be hidden)"}\n`,
+  );
+  process.stdout.write(
+    `Skills:      ${skills.filter((s) => s.eligible).length} eligible / ${skills.length} found\n`,
+  );
   for (const s of skills) {
-    process.stdout.write(`   ${s.eligible ? "✅" : "⏸ "} ${s.name}${s.requiresBins.length ? ` (needs: ${s.requiresBins.join(",")})` : ""}\n`);
+    process.stdout.write(
+      `   ${s.eligible ? "✅" : "⏸ "} ${s.name}${s.requiresBins.length ? ` (needs: ${s.requiresBins.join(",")})` : ""}\n`,
+    );
   }
 }
 
 function requireLogin(): void {
   if (!isLoggedIn()) {
-    process.stdout.write("❌ Not logged in. Run `crablite login` first (needs a ChatGPT/Codex account).\n");
+    process.stdout.write(
+      "❌ Not logged in. Run `crablite login` first (needs a ChatGPT/Codex account).\n",
+    );
     process.exit(1);
   }
 }
@@ -174,6 +189,6 @@ function printUsage(): void {
 }
 
 main().catch((err) => {
-  log.error("Fatal:", err instanceof Error ? err.stack ?? err.message : String(err));
+  log.error("Fatal:", err instanceof Error ? (err.stack ?? err.message) : String(err));
   process.exit(1);
 });

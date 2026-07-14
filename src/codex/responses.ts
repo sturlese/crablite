@@ -38,7 +38,12 @@ export type ContentPart =
   | { type: "input_image"; image_url: string };
 
 export type MessageItem = { type: "message"; role: "user" | "assistant"; content: ContentPart[] };
-export type FunctionCallItem = { type: "function_call"; name: string; arguments: string; call_id: string };
+export type FunctionCallItem = {
+  type: "function_call";
+  name: string;
+  arguments: string;
+  call_id: string;
+};
 export type FunctionOutputItem = { type: "function_call_output"; call_id: string; output: string };
 
 export type ResponseItem = MessageItem | FunctionCallItem | FunctionOutputItem;
@@ -56,7 +61,10 @@ export function userItemWithParts(parts: ContentPart[]): MessageItem {
 
 /** An input_image content part from raw bytes (base64 data URI). */
 export function imagePart(data: Buffer, mimetype: string): ContentPart {
-  return { type: "input_image", image_url: `data:${mimetype || "image/jpeg"};base64,${data.toString("base64")}` };
+  return {
+    type: "input_image",
+    image_url: `data:${mimetype || "image/jpeg"};base64,${data.toString("base64")}`,
+  };
 }
 
 export function assistantItem(text: string): MessageItem {
@@ -64,7 +72,12 @@ export function assistantItem(text: string): MessageItem {
 }
 
 export function functionCallItem(call: ToolCall): FunctionCallItem {
-  return { type: "function_call", name: call.name, arguments: call.arguments, call_id: call.callId };
+  return {
+    type: "function_call",
+    name: call.name,
+    arguments: call.arguments,
+    call_id: call.callId,
+  };
 }
 
 export function functionOutputItem(callId: string, output: string): FunctionOutputItem {
@@ -140,7 +153,9 @@ export async function callModel(params: {
   if (!res.ok || !res.body) {
     const text = await safeText(res);
     cleanup();
-    throw new Error(`Codex model request failed: HTTP ${res.status} ${res.statusText} ${text}`.trim());
+    throw new Error(
+      `Codex model request failed: HTTP ${res.status} ${res.statusText} ${text}`.trim(),
+    );
   }
 
   const toolCalls: ToolCall[] = [];
@@ -164,7 +179,10 @@ export async function callModel(params: {
             toolCalls.push({
               callId: String(item.call_id ?? item.id ?? crypto.randomUUID()),
               name: String(item.name ?? ""),
-              arguments: typeof item.arguments === "string" ? item.arguments : JSON.stringify(item.arguments ?? {}),
+              arguments:
+                typeof item.arguments === "string"
+                  ? item.arguments
+                  : JSON.stringify(item.arguments ?? {}),
             });
           }
           break;
@@ -190,7 +208,8 @@ export async function callModel(params: {
     }
   } catch (err) {
     cleanup();
-    if (controller.signal.aborted) throw new Error("Model turn aborted (idle timeout or cancellation).");
+    if (controller.signal.aborted)
+      throw new Error("Model turn aborted (idle timeout or cancellation).");
     throw err;
   }
 
@@ -215,9 +234,10 @@ async function* sseEvents(stream: ReadableStream<Uint8Array>): AsyncGenerator<SS
     const { done, value } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
-    let sep: number;
     // SSE events are separated by a blank line.
-    while ((sep = indexOfDoubleNewline(buffer)) !== -1) {
+    while (true) {
+      const sep = indexOfDoubleNewline(buffer);
+      if (sep === -1) break;
       const block = buffer.slice(0, sep);
       buffer = buffer.slice(sep).replace(/^\r?\n\r?\n/, "");
       const evt = parseBlock(block);

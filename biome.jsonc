@@ -1,0 +1,52 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "semicolons": "always",
+      "trailingCommas": "all",
+      "arrowParentheses": "always"
+    }
+  },
+  "assist": {
+    "actions": {
+      "source": {
+        // Import blocks are hand-ordered (node builtins → app modules) and
+        // consistent; auto-sorting would churn every file for no signal.
+        "organizeImports": "off"
+      }
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "suspicious": {
+        // Deliberate at the untyped boundaries: Baileys' CJS/ESM builds and
+        // model-provided tool args. The typed core (ResponseItem, Tool) is
+        // where the compiler earns its keep.
+        "noExplicitAny": "off"
+      },
+      "style": {
+        // Idiomatic here: with noUncheckedIndexedAccess, `x[i]!` after a
+        // bounds check is the honest spelling.
+        "noNonNullAssertion": "off",
+        // Prompt/policy prose is built as wrapped "..." + "..." chains, often
+        // mixing a variable in; converting those to template literals would
+        // churn carefully worded strings for no readability gain.
+        "useTemplate": "off"
+      }
+    }
+  }
+}

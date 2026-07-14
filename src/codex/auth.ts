@@ -100,7 +100,11 @@ function headers(contentType: string): Record<string, string> {
   };
 }
 
-function buildCredential(tokens: { access: string; refresh: string; expiresInMs?: number }): CodexCredential {
+function buildCredential(tokens: {
+  access: string;
+  refresh: string;
+  expiresInMs?: number;
+}): CodexCredential {
   const expires = tokens.expiresInMs
     ? Date.now() + tokens.expiresInMs
     : (expiryFrom(tokens.access) ?? Date.now() + 45 * 60_000);
@@ -139,11 +143,21 @@ async function requestDeviceCode(): Promise<{
   const deviceAuthId = str(body?.device_auth_id);
   const userCode = str(body?.user_code) ?? str(body?.usercode);
   if (!deviceAuthId || !userCode) throw new Error("Device code response missing fields.");
-  const interval = typeof body?.interval === "number" ? body.interval * 1000 : DEVICE_DEFAULT_INTERVAL_MS;
-  return { deviceAuthId, userCode, intervalMs: interval, verificationUrl: `${AUTH_BASE}/codex/device` };
+  const interval =
+    typeof body?.interval === "number" ? body.interval * 1000 : DEVICE_DEFAULT_INTERVAL_MS;
+  return {
+    deviceAuthId,
+    userCode,
+    intervalMs: interval,
+    verificationUrl: `${AUTH_BASE}/codex/device`,
+  };
 }
 
-async function pollDeviceCode(deviceAuthId: string, userCode: string, intervalMs: number): Promise<{ code: string; verifier: string }> {
+async function pollDeviceCode(
+  deviceAuthId: string,
+  userCode: string,
+  intervalMs: number,
+): Promise<{ code: string; verifier: string }> {
   const deadline = Date.now() + DEVICE_TIMEOUT_MS;
   while (Date.now() < deadline) {
     const res = await fetch(`${AUTH_BASE}/api/accounts/deviceauth/token`, {
@@ -205,7 +219,9 @@ export function extractAuthCode(pasted: string): string | null {
   if (!trimmed) return null;
   if (trimmed.includes("code=")) {
     try {
-      const url = new URL(trimmed.includes("://") ? trimmed : `http://x/?${trimmed.replace(/^\?/, "")}`);
+      const url = new URL(
+        trimmed.includes("://") ? trimmed : `http://x/?${trimmed.replace(/^\?/, "")}`,
+      );
       const code = url.searchParams.get("code");
       if (code) return code;
     } catch {
@@ -220,7 +236,9 @@ function extractParam(pasted: string, name: string): string | null {
   const trimmed = pasted.trim();
   if (!trimmed.includes(`${name}=`)) return null;
   try {
-    const url = new URL(trimmed.includes("://") ? trimmed : `http://x/?${trimmed.replace(/^\?/, "")}`);
+    const url = new URL(
+      trimmed.includes("://") ? trimmed : `http://x/?${trimmed.replace(/^\?/, "")}`,
+    );
     return url.searchParams.get(name);
   } catch {
     return null;
@@ -231,7 +249,11 @@ function extractParam(pasted: string, name: string): string | null {
 // Token exchange & refresh
 // ---------------------------------------------------------------------------
 
-async function exchangeCode(code: string, verifier: string, redirectUri: string): Promise<CodexCredential> {
+async function exchangeCode(
+  code: string,
+  verifier: string,
+  redirectUri: string,
+): Promise<CodexCredential> {
   const res = await fetch(`${AUTH_BASE}/oauth/token`, {
     method: "POST",
     headers: headers("application/x-www-form-urlencoded"),
@@ -301,7 +323,11 @@ export async function login(io: {
     const device = await requestDeviceCode();
     io.onVerification({ verificationUrl: device.verificationUrl, userCode: device.userCode });
     io.prompt("Waiting for you to authorize…");
-    const { code, verifier } = await pollDeviceCode(device.deviceAuthId, device.userCode, device.intervalMs);
+    const { code, verifier } = await pollDeviceCode(
+      device.deviceAuthId,
+      device.userCode,
+      device.intervalMs,
+    );
     const cred = await exchangeCode(code, verifier, DEVICE_CALLBACK);
     writeCredential(cred);
     return cred;
@@ -351,7 +377,12 @@ export async function getAccessToken(): Promise<{ access: string; accountId?: st
   return { access: cred.access, accountId: cred.accountId };
 }
 
-export function authStatus(): { loggedIn: boolean; email?: string; planType?: string; expiresInMin?: number } {
+export function authStatus(): {
+  loggedIn: boolean;
+  email?: string;
+  planType?: string;
+  expiresInMin?: number;
+} {
   const cred = readCredential();
   if (!cred) return { loggedIn: false };
   return {

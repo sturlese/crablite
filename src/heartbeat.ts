@@ -131,7 +131,9 @@ async function maybeDailyCheckIn(channelId: string, send: Sender): Promise<void>
 
 function readHeartbeatGuidance(): string {
   try {
-    return fs.readFileSync(paths.heartbeatFile(), "utf8").trim() || "(no HEARTBEAT.md guidance set)";
+    return (
+      fs.readFileSync(paths.heartbeatFile(), "utf8").trim() || "(no HEARTBEAT.md guidance set)"
+    );
   } catch {
     return "(no HEARTBEAT.md guidance set)";
   }

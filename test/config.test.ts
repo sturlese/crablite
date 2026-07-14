@@ -41,7 +41,7 @@ describe("config", () => {
     expect(c.heartbeatChat).toBe("34600@s.whatsapp.net");
   });
 
-  it("disables dreaming for common falsy env spellings, not just \"0\"", () => {
+  it('disables dreaming for common falsy env spellings, not just "0"', () => {
     dir = tmpState();
     for (const falsy of ["0", "false", "no", "off", "FALSE", "Off"]) {
       process.env.CRABLITE_DREAMING = falsy;

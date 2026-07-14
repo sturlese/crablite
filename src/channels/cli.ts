@@ -15,7 +15,11 @@ export async function runCliChat(): Promise<void> {
       `Type a message. Commands: /reset, /dream, /help. Ctrl-C or "exit" to quit.\n`,
   );
 
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout, prompt: "\nyou › " });
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    prompt: "\nyou › ",
+  });
   rl.prompt();
 
   for await (const line of rl) {

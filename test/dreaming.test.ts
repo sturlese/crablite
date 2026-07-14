@@ -11,7 +11,8 @@ let dir: string;
 afterEach(() => cleanup(dir));
 
 function seedRecall(snippet: string, source: string, times: number, score = 0.9): void {
-  for (let i = 0; i < times; i++) recordRecall({ snippet, source, score, query: "distinct query number " + i });
+  for (let i = 0; i < times; i++)
+    recordRecall({ snippet, source, score, query: "distinct query number " + i });
 }
 const memoryText = () => fs.readFileSync(path.join(paths.workspace(), "MEMORY.md"), "utf8");
 
@@ -19,7 +20,10 @@ describe("dreaming (self-learning)", () => {
   it("promotes a frequently-recalled note with provenance + marker, idempotently", async () => {
     dir = tmpState();
     seedWorkspace();
-    fs.writeFileSync(path.join(paths.memoryDir(), "2026-07-09.md"), "# d\n\nThe cat sleeps a lot.\n");
+    fs.writeFileSync(
+      path.join(paths.memoryDir(), "2026-07-09.md"),
+      "# d\n\nThe cat sleeps a lot.\n",
+    );
     seedRecall("The cat sleeps a lot.", "memory/2026-07-09.md:3-3", 3);
 
     const res = await runDreaming(); // no model -> reflection falls back to templated
@@ -44,7 +48,10 @@ describe("dreaming (self-learning)", () => {
     // User content alone exceeds the 10k budget, so any appended promotion
     // section is evicted by compactMemory.
     fs.writeFileSync(memoryPath, "# Memory\n\n" + "x".repeat(10_001) + "\n");
-    fs.writeFileSync(path.join(paths.memoryDir(), "2026-07-09.md"), "# d\n\nThe cat sleeps a lot.\n");
+    fs.writeFileSync(
+      path.join(paths.memoryDir(), "2026-07-09.md"),
+      "# d\n\nThe cat sleeps a lot.\n",
+    );
     seedRecall("The cat sleeps a lot.", "memory/2026-07-09.md:3-3", 3);
 
     const res = await runDreaming();

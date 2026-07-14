@@ -54,5 +54,7 @@ export function startDreamingScheduler(): void {
   // Check every 30 minutes (and once shortly after startup).
   setInterval(() => void check(), 30 * 60_000);
   setTimeout(() => void check(), 5_000);
-  log.info(`Dreaming scheduled daily around ${String(cfg.dreamHour).padStart(2, "0")}:00 local time.`);
+  log.info(
+    `Dreaming scheduled daily around ${String(cfg.dreamHour).padStart(2, "0")}:00 local time.`,
+  );
 }

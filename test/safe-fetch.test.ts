@@ -31,7 +31,12 @@ describe("safeFetchText SSRF guard", () => {
   it("fetches a public host (mocked) and caps the body size", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({ ok: true, status: 200, headers: new Headers(), body: streamOf("x".repeat(5000)) }),
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        body: streamOf("x".repeat(5000)),
+      }),
     );
     const t = await safeFetchText("http://8.8.8.8/", { maxBytes: 1000 });
     expect(t.length).toBe(1000);
@@ -51,7 +56,11 @@ describe("safeFetchText SSRF guard", () => {
   it("re-validates the target of a redirect", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValueOnce({ status: 302, headers: new Headers({ location: "http://127.0.0.1/" }), body: null }),
+      vi.fn().mockResolvedValueOnce({
+        status: 302,
+        headers: new Headers({ location: "http://127.0.0.1/" }),
+        body: null,
+      }),
     );
     await expect(safeFetchText("http://8.8.8.8/", { timeoutMs: 1000 })).rejects.toThrow(/private/);
   });

@@ -25,7 +25,11 @@ type SessionIndex = Record<string, IndexEntry>;
 export type SessionKey = string & { readonly __sessionKey: unique symbol };
 
 /** The stable session key: one conversation per (channel, chatType, chatId). */
-export function sessionKeyFor(channel: string, chatType: "direct" | "group", chatId: string): SessionKey {
+export function sessionKeyFor(
+  channel: string,
+  chatType: "direct" | "group",
+  chatId: string,
+): SessionKey {
   return `crablite:${channel}:${chatType}:${chatId}` as SessionKey;
 }
 

@@ -75,11 +75,15 @@ export class WhatsAppChannel implements Channel {
       const statusCode = u.lastDisconnect?.error?.output?.statusCode;
       const loggedOut = statusCode === DisconnectReason?.loggedOut;
       if (loggedOut) {
-        log.error("WhatsApp session logged out. Delete auth/whatsapp and re-link (crablite login is separate).");
+        log.error(
+          "WhatsApp session logged out. Delete auth/whatsapp and re-link (crablite login is separate).",
+        );
         return;
       }
       if (this.stopped) return;
-      log.warn(`WhatsApp connection closed (code ${statusCode}); reconnecting in ${this.reconnectDelay}ms…`);
+      log.warn(
+        `WhatsApp connection closed (code ${statusCode}); reconnecting in ${this.reconnectDelay}ms…`,
+      );
       setTimeout(() => {
         this.connect().catch((e) => log.error("Reconnect failed:", String(e)));
       }, this.reconnectDelay);
@@ -122,11 +126,7 @@ export class WhatsAppChannel implements Channel {
   /** Download inbound images and voice notes (only the kinds we actually use). */
   private async extractMedia(m: any): Promise<InboundMedia[] | undefined> {
     const message = m.message ?? {};
-    const kind = message.imageMessage
-      ? "image"
-      : message.audioMessage
-        ? "audio"
-        : undefined;
+    const kind = message.imageMessage ? "image" : message.audioMessage ? "audio" : undefined;
     if (!kind) return undefined;
     const node = message[`${kind}Message`];
     // Refuse oversized attachments before downloading (bounds a bandwidth/memory DoS).
