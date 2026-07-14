@@ -5,10 +5,13 @@ vi.mock("../src/codex/responses.js", async (importOriginal) => {
   return { ...actual, callModel: vi.fn() };
 });
 
+import fs from "node:fs";
+import path from "node:path";
 import { callModel } from "../src/codex/responses.js";
 import { tmpState, cleanup } from "./helpers.js";
 import { runTurn } from "../src/agent/runner.js";
 import { loadSession } from "../src/session/store.js";
+import { paths } from "../src/paths.js";
 
 let dir: string;
 afterEach(() => {
@@ -51,6 +54,42 @@ describe("runTurn", () => {
     // caused by prior aliasing session.items and being mutated by appendItems.
     expect(capturedInput.length).toBe(1);
     expect(capturedInput.filter((i) => JSON.stringify(i).includes("hello")).length).toBe(1);
+  });
+
+  it("saves an inbound document to inbox/ and tells the model where it is", async () => {
+    dir = tmpState();
+    let capturedInput: any[] = [];
+    vi.mocked(callModel).mockImplementation(async (p) => {
+      capturedInput = [...p.input];
+      return { text: "got it", toolCalls: [] };
+    });
+    await runTurn({
+      sessionKey: "k",
+      userText: "here is the invoice",
+      media: [
+        {
+          kind: "document",
+          data: Buffer.from("%PDF-fake"),
+          mimetype: "application/pdf",
+          filename: "factura.pdf",
+        },
+      ],
+      channel: "whatsapp",
+      chatType: "direct",
+      chatReply: reply,
+    });
+
+    const liveText = JSON.stringify(capturedInput.at(-1));
+    expect(liveText).toContain("[document saved: inbox/");
+    expect(liveText).toContain("factura.pdf");
+
+    const inbox = path.join(paths.workspace(), "inbox");
+    const saved = fs.readdirSync(inbox);
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toMatch(/factura\.pdf$/);
+    // The persisted transcript carries the note too (searchable later).
+    const persisted = JSON.stringify(loadSession("k").items[0]);
+    expect(persisted).toContain("[document saved: inbox/");
   });
 
   it("treats NO_REPLY as silent", async () => {
