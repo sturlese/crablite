@@ -10,6 +10,8 @@
 //       memory/YYYY-MM-DD.md   daily notes + .recall.json
 //       skills/                user-dropped skills
 //     sessions/                sessions.json + <sessionId>.jsonl
+//     reminders.json           one-shot commitments (heartbeat-delivered)
+//     routines.json            recurring routines (heartbeat-run)
 //     logs/
 
 import fs from "node:fs";
@@ -47,6 +49,7 @@ export const paths = {
   sessionsIndex: () => path.join(stateDir(), "sessions", "sessions.json"),
   logsDir: () => path.join(stateDir(), "logs"),
   remindersFile: () => path.join(stateDir(), "reminders.json"),
+  routinesFile: () => path.join(stateDir(), "routines.json"),
   heartbeatFile: () => path.join(stateDir(), "workspace", "HEARTBEAT.md"),
 };
 
