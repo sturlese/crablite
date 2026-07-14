@@ -36,7 +36,7 @@ describe("heartbeat", () => {
     const send = async (chatId: string) => {
       sends.push(chatId);
     };
-    startHeartbeat("whatsapp", send);
+    startHeartbeat({ id: "whatsapp", send });
 
     await vi.advanceTimersByTimeAsync(10_000); // tick #1: marks r1, awaits its slow turn
     await vi.advanceTimersByTimeAsync(60_000); // tick #2 fires while #1 is still delivering
