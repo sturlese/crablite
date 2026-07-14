@@ -3,7 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { tmpState, cleanup } from "./helpers.js";
 import { paths, ensureStateDirs } from "../src/paths.js";
-import { CORE_TOOLS, toSchemas } from "../src/agent/tools.js";
+import { CORE_TOOLS } from "../src/agent/tools.js";
+import { toSchemas } from "../src/agent/tool.js";
 
 let dir: string;
 afterEach(() => {

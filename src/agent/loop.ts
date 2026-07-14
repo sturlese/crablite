@@ -12,7 +12,7 @@ import {
   functionCallItem,
   functionOutputItem,
 } from "../codex/responses.js";
-import { toSchemas, type Tool, type ToolContext } from "./tools.js";
+import { toSchemas, type Tool, type ToolContext } from "./tool.js";
 import { log } from "../logger.js";
 
 export type LoopResult = { text: string; newItems: any[] };
