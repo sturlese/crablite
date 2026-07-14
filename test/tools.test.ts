@@ -150,6 +150,19 @@ describe("core tools", () => {
     expect(await tool("send_file").execute({ path: "big.bin" }, sendCtx)).toMatch(/send cap/);
   });
 
+  it("react sends a single emoji through the channel", async () => {
+    const ctx = setup();
+    const reactions: string[] = [];
+    const reactCtx = { ...ctx, chatReact: async (e: string) => void reactions.push(e) };
+    expect(await tool("react").execute({ emoji: "👍" }, reactCtx)).toContain("Reacted with 👍");
+    expect(reactions).toEqual(["👍"]);
+    expect(await tool("react").execute({ emoji: "" }, reactCtx)).toMatch(/exactly one emoji/);
+    expect(await tool("react").execute({ emoji: "hello there" }, reactCtx)).toMatch(
+      /exactly one emoji/,
+    );
+    expect(await tool("react").execute({ emoji: "👍" }, ctx)).toMatch(/does not support/);
+  });
+
   it("web_fetch fences output as untrusted and blocks SSRF", async () => {
     const ctx = setup();
     vi.stubGlobal(

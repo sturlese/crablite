@@ -14,6 +14,8 @@ export type ToolContext = {
   chatReply?: (text: string) => Promise<void>;
   /** Send a file to the current chat (absent on channels that can't). */
   chatSendFile?: (file: OutboundFile) => Promise<void>;
+  /** React to the user's message with an emoji (absent on channels that can't). */
+  chatReact?: (emoji: string) => Promise<void>;
   signal?: AbortSignal;
 };
 

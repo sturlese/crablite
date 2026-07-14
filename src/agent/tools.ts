@@ -157,6 +157,30 @@ const messageTool: Tool = {
   },
 };
 
+const reactTool: Tool = {
+  name: "react",
+  description:
+    "React to the user's message with a single emoji (👍 ✅ ❤️ 😂 👀 …) — a lightweight " +
+    "acknowledgement without sending a text. Ideal for 'thanks', 'ok', or marking something " +
+    "done; after reacting you can reply NO_REPLY if nothing more needs saying.",
+  parameters: {
+    type: "object",
+    properties: { emoji: { type: "string", description: "One emoji." } },
+    required: ["emoji"],
+    additionalProperties: false,
+  },
+  async execute(args, ctx) {
+    if (!ctx.chatReact) return "This channel does not support reactions.";
+    const emoji = String(args.emoji ?? "").trim();
+    // One emoji only — compound (ZWJ/skin-tone) sequences stay well under this.
+    if (!emoji || emoji.length > 16 || /\s/.test(emoji)) {
+      return "ERROR: provide exactly one emoji.";
+    }
+    await ctx.chatReact(emoji);
+    return `Reacted with ${emoji}.`;
+  },
+};
+
 const sendFileTool: Tool = {
   name: "send_file",
   description:
@@ -236,6 +260,7 @@ export const CORE_TOOLS: Tool[] = [
   execTool,
   messageTool,
   sendFileTool,
+  reactTool,
   webFetchTool,
 ];
 

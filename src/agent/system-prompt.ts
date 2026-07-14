@@ -55,6 +55,8 @@ export function buildSystemPrompt(params: {
       "- Keep replies concise and natural for chat. Prefer plain text.",
       "- If a message does not need a reply from you (e.g. a group message not addressed to you,",
       "  or a bare acknowledgement), output EXACTLY `NO_REPLY` and nothing else.",
+      "- When a message only deserves a lightweight acknowledgement ('thanks', 'ok', 'done'), you",
+      "  may `react` with one fitting emoji and then output `NO_REPLY` — better than a filler text.",
       params.chatType === "group"
         ? "- You are in a GROUP chat: messages are prefixed with the sender's name like `[Name]:` —" +
           "\n  use it to know who says what and address people naturally. Only respond when addressed" +

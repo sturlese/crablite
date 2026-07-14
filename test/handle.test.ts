@@ -57,6 +57,35 @@ describe("inbound handler admission", () => {
     expect(runTurn).toHaveBeenCalledTimes(1);
   });
 
+  it("marks admitted messages as read, and only those", async () => {
+    process.env.CRABLITE_ALLOW_FROM = "34600";
+    resetConfigCache();
+    const h = createInboundHandler("whatsapp");
+    const admitted = msg({ markRead: vi.fn().mockResolvedValue(undefined) });
+    const rejected = msg({
+      senderId: "unknown@s",
+      markRead: vi.fn().mockResolvedValue(undefined),
+    });
+    await h(admitted);
+    await h(rejected);
+    await wait();
+    expect(admitted.markRead).toHaveBeenCalledTimes(1);
+    expect(rejected.markRead).not.toHaveBeenCalled();
+  });
+
+  it("shows typing while the turn runs and clears it afterwards", async () => {
+    process.env.CRABLITE_ALLOW_FROM = "*";
+    resetConfigCache();
+    const typing: boolean[] = [];
+    const h = createInboundHandler("whatsapp");
+    const m = msg({ setTyping: vi.fn(async (on: boolean) => void typing.push(on)) });
+    await h(m);
+    await wait();
+    expect(typing[0]).toBe(true); // composing before the reply
+    expect(typing[typing.length - 1]).toBe(false); // cleared after
+    expect(m.reply).toHaveBeenCalledWith("ok"); // reply still delivered
+  });
+
   it("formats sender names (groups) and quoted excerpts for the model", () => {
     expect(formatForModel(msg({ text: "hola" }))).toBe("hola");
     expect(formatForModel(msg({ chatType: "group", senderName: "Laura", text: "hola" }))).toBe(
