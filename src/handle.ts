@@ -7,6 +7,7 @@
 
 import { loadConfig } from "./config.js";
 import { runTurn } from "./agent/runner.js";
+import { sessionKeyFor } from "./session/store.js";
 import { withLock } from "./util/lock.js";
 import { log } from "./logger.js";
 import type { InboundMessage } from "./channels/types.js";
@@ -95,7 +96,7 @@ async function process(
   media: InboundMessage["media"],
   last: InboundMessage,
 ): Promise<void> {
-  const sessionKey = `crablite:${channelId}:${last.chatType}:${chatId}`;
+  const sessionKey = sessionKeyFor(channelId, last.chatType, chatId);
   try {
     const result = await runTurn({
       sessionKey,
