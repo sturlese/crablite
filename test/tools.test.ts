@@ -95,7 +95,10 @@ describe("core tools", () => {
     expect(out).not.toContain("NaN");
   });
 
-  it("exec runs a shell command and enforces a timeout", async () => {
+  // The kill-after-1s assertion needs >1s of wall clock by design; on a busy
+  // CI runner (2 cores, coverage instrumentation) that can brush the default
+  // 5s test timeout, so give it explicit headroom.
+  it("exec runs a shell command and enforces a timeout", { timeout: 20_000 }, async () => {
     const ctx = setup();
     expect(await tool("exec").execute({ command: "echo hola" }, ctx)).toContain("hola");
     expect(await tool("exec").execute({ command: "sleep 5", timeoutSec: 1 }, ctx)).toContain(
