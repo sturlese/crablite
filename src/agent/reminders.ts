@@ -60,6 +60,16 @@ export function markDelivered(id: string): void {
   }
 }
 
+/** Remove a pending reminder by id. Returns the removed reminder, or null. */
+export function removeReminder(id: string): Reminder | null {
+  const store = load();
+  const idx = store.reminders.findIndex((r) => r.id === id && !r.delivered);
+  if (idx === -1) return null;
+  const [removed] = store.reminders.splice(idx, 1);
+  save(store);
+  return removed ?? null;
+}
+
 // --- the model-facing tool --------------------------------------------------
 
 export const scheduleReminderTool: Tool = {

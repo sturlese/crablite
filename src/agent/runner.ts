@@ -24,6 +24,7 @@ import type { Tool } from "./tool.js";
 import { MEMORY_TOOLS } from "../memory/search.js";
 import { makeSpawnTool } from "./subagent.js";
 import { scheduleReminderTool } from "./reminders.js";
+import { SCHEDULE_TOOLS } from "./schedule-tools.js";
 import { runAgentLoop } from "./loop.js";
 import { buildSystemPrompt } from "./system-prompt.js";
 import { loadSkills, formatSkillCatalog } from "../skills/loader.js";
@@ -86,11 +87,12 @@ export async function runTurn(params: {
   const input = [...prior, liveItem];
   appendItems(session, [persistItem]);
 
-  // Assemble tools: core + memory + reminders + subagent spawning.
+  // Assemble tools: core + memory + reminders/routines + subagent spawning.
   const tools: Tool[] = [
     ...CORE_TOOLS,
     ...MEMORY_TOOLS,
     scheduleReminderTool,
+    ...SCHEDULE_TOOLS,
     makeSpawnTool({
       model: cfg.model,
       maxDepth: cfg.maxSubagentDepth,
@@ -208,7 +210,8 @@ async function handleSlashCommand(
     return {
       replyText:
         "Commands: /reset (new conversation), /dream (run self-learning now), /help. " +
-        "Otherwise just talk to me — I remember things in files under my workspace.",
+        "Otherwise just talk to me — I remember things in files under my workspace, and I can " +
+        "schedule one-shot reminders and recurring routines (ask me what's scheduled to see them).",
       silent: false,
     };
   }
