@@ -22,8 +22,12 @@ export type InboundMessage = {
   id: string;
   chatId: string;
   senderId: string;
+  /** Display name of the sender (WhatsApp pushName), when the channel knows it. */
+  senderName?: string;
   chatType: ChatType;
   text: string;
+  /** Excerpt of the message this one replies to (text, or a media placeholder). */
+  quotedText?: string;
   /** Attached media (images to see, voice notes to transcribe, documents to save). */
   media?: InboundMedia[];
   /** Send a reply back to this chat. */

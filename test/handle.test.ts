@@ -5,7 +5,7 @@ vi.mock("../src/agent/runner.js", () => ({
 }));
 
 import { runTurn } from "../src/agent/runner.js";
-import { createInboundHandler } from "../src/handle.js";
+import { createInboundHandler, formatForModel } from "../src/handle.js";
 import { resetConfigCache } from "../src/config.js";
 
 const wait = (ms = 30) => new Promise((r) => setTimeout(r, ms));
@@ -55,6 +55,44 @@ describe("inbound handler admission", () => {
     await h({ ...m });
     await wait();
     expect(runTurn).toHaveBeenCalledTimes(1);
+  });
+
+  it("formats sender names (groups) and quoted excerpts for the model", () => {
+    expect(formatForModel(msg({ text: "hola" }))).toBe("hola");
+    expect(formatForModel(msg({ chatType: "group", senderName: "Laura", text: "hola" }))).toBe(
+      "[Laura]: hola",
+    );
+    // Direct chats don't prefix the name (single counterpart).
+    expect(formatForModel(msg({ senderName: "Marc", text: "hola" }))).toBe("hola");
+    expect(formatForModel(msg({ quotedText: "move it to Friday", text: "ok with this?" }))).toBe(
+      '[replying to "move it to Friday"] ok with this?',
+    );
+    expect(
+      formatForModel(
+        msg({ chatType: "group", senderName: "Laura", quotedText: "[image]", text: "love it" }),
+      ),
+    ).toBe('[Laura, replying to "[image]"]: love it');
+  });
+
+  it("passes the formatted batch and the sender name to runTurn", async () => {
+    process.env.CRABLITE_ALLOW_FROM = "*";
+    resetConfigCache();
+    const h = createInboundHandler("whatsapp");
+    await h(
+      msg({
+        chatType: "group",
+        senderName: "Laura",
+        text: "hey Crab can you check this",
+        quotedText: "budget draft v2",
+      }),
+    );
+    await wait();
+    expect(runTurn).toHaveBeenCalledTimes(1);
+    const params = vi.mocked(runTurn).mock.calls[0]![0] as any;
+    expect(params.userText).toBe(
+      '[Laura, replying to "budget draft v2"]: hey Crab can you check this',
+    );
+    expect(params.senderName).toBe("Laura");
   });
 
   it("requires a mention in group chats", async () => {

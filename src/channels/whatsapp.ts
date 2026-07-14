@@ -127,12 +127,16 @@ export class WhatsAppChannel implements Channel {
     if (!text && (!media || media.length === 0)) return;
 
     const chatType = remoteJid.endsWith("@g.us") ? "group" : "direct";
+    const senderName =
+      typeof m.pushName === "string" && m.pushName.trim() ? m.pushName.trim() : undefined;
     const msg: InboundMessage = {
       id: String(m.key.id ?? ""),
       chatId: remoteJid,
       senderId: String(m.key.participant ?? remoteJid),
+      senderName,
       chatType,
       text,
+      quotedText: extractQuoted(m.message),
       media,
       reply: async (t: string) => {
         const sent = await this.sock.sendMessage(remoteJid, { text: t });
@@ -191,7 +195,7 @@ export class WhatsAppChannel implements Channel {
   }
 }
 
-function extractText(message: any): string {
+export function extractText(message: any): string {
   return (
     message.conversation ??
     message.extendedTextMessage?.text ??
@@ -201,4 +205,33 @@ function extractText(message: any): string {
     message.documentWithCaptionMessage?.message?.documentMessage?.caption ??
     ""
   ).trim();
+}
+
+const QUOTE_MAX_CHARS = 400;
+
+/**
+ * The message being replied to, as text or a media placeholder — so "what do
+ * you think about this?" (quoting something) actually reaches the model.
+ * contextInfo lives on whichever node carries the reply (extendedTextMessage,
+ * imageMessage, …), so scan the message's nodes for it.
+ */
+export function extractQuoted(message: any): string | undefined {
+  for (const node of Object.values(message ?? {})) {
+    const quoted = (node as any)?.contextInfo?.quotedMessage;
+    if (quoted) return renderQuoted(quoted);
+  }
+  return undefined;
+}
+
+function renderQuoted(quoted: any): string {
+  const inner = quoted.documentWithCaptionMessage?.message ?? quoted;
+  const text = extractText(inner);
+  if (text) return text.length > QUOTE_MAX_CHARS ? `${text.slice(0, QUOTE_MAX_CHARS)} …` : text;
+  if (inner.audioMessage) return "[voice note]";
+  if (inner.imageMessage) return "[image]";
+  if (inner.videoMessage) return "[video]";
+  if (inner.documentMessage) return `[document: ${inner.documentMessage.fileName ?? "file"}]`;
+  if (inner.stickerMessage) return "[sticker]";
+  if (inner.locationMessage) return "[location]";
+  return "[message]";
 }
