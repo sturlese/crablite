@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { describe, it, expect, afterEach } from "vitest";
 import { tmpState, cleanup } from "./helpers.js";
 import { loadSession, appendItems, resetSession, getFlushedChars, setFlushedChars } from "../src/session/store.js";
@@ -27,6 +28,15 @@ describe("session store", () => {
     const s2 = loadSession("k1");
     expect(s2.sessionId).not.toBe(s.sessionId);
     expect(s2.items).toEqual([]);
+  });
+
+  it("reset deletes the old transcript file (no orphans)", () => {
+    dir = tmpState();
+    const s = loadSession("k1");
+    appendItems(s, [userMsg("hi")]);
+    expect(fs.existsSync(s.file)).toBe(true);
+    resetSession("k1");
+    expect(fs.existsSync(s.file)).toBe(false);
   });
 
   it("tracks flushedChars per session", () => {

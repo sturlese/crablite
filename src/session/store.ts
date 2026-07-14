@@ -112,6 +112,16 @@ export function appendItems(session: Session, items: ResponseItem[]): void {
 /** Start a fresh conversation for this key (used by `/reset`). */
 export function resetSession(sessionKey: SessionKey): void {
   const index = readIndex();
+  const entry = index[sessionKey];
+  if (entry) {
+    // Once the index entry is gone the old transcript is unreachable — delete
+    // it so repeated /reset doesn't accumulate orphaned JSONL files forever.
+    try {
+      fs.unlinkSync(entry.file);
+    } catch {
+      /* best effort — may already be gone */
+    }
+  }
   delete index[sessionKey];
   writeIndex(index);
 }
