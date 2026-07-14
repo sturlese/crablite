@@ -36,8 +36,11 @@ describe("heartbeat routines", () => {
     });
 
     const sends: Array<[string, string]> = [];
-    startHeartbeat("whatsapp", async (chatId, text) => {
-      sends.push([chatId, text]);
+    startHeartbeat({
+      id: "whatsapp",
+      send: async (chatId, text) => {
+        sends.push([chatId, text]);
+      },
     });
 
     // Not due yet at the startup check (fires in 5 min).
@@ -73,8 +76,11 @@ describe("heartbeat routines", () => {
     });
 
     const sends: string[] = [];
-    startHeartbeat("whatsapp", async (chatId) => {
-      sends.push(chatId);
+    startHeartbeat({
+      id: "whatsapp",
+      send: async (chatId) => {
+        sends.push(chatId);
+      },
     });
 
     await vi.advanceTimersByTimeAsync(10_000 + 6 * 60_000);

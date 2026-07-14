@@ -21,10 +21,16 @@ import { dueReminders, markDelivered, type Reminder } from "./agent/reminders.js
 import { advanceRoutine, describeSchedule, dueRoutines, type Routine } from "./agent/routines.js";
 import { todayStamp } from "./memory/workspace.js";
 import { log } from "./logger.js";
+import type { OutboundFile } from "./channels/types.js";
 
-type Sender = (chatId: string, text: string) => Promise<void>;
+/** What the heartbeat needs from a channel (WhatsAppChannel satisfies it). */
+export type HeartbeatChannel = {
+  id: string;
+  send: (chatId: string, text: string) => Promise<void>;
+  sendFile?: (chatId: string, file: OutboundFile) => Promise<void>;
+};
 
-export function startHeartbeat(channelId: string, send: Sender): void {
+export function startHeartbeat(channel: HeartbeatChannel): void {
   // A single reminder turn can run for up to the model idle timeout (~2 min),
   // longer than the 60s interval. setInterval does not await the previous run,
   // so without this guard two ticks overlap: the second delivers a reminder the
@@ -34,9 +40,9 @@ export function startHeartbeat(channelId: string, send: Sender): void {
     if (running) return;
     running = true;
     try {
-      await deliverDueReminders(channelId, send);
-      await runDueRoutines(channelId, send);
-      await maybeDailyCheckIn(channelId, send);
+      await deliverDueReminders(channel);
+      await runDueRoutines(channel);
+      await maybeDailyCheckIn(channel);
     } finally {
       running = false;
     }
@@ -46,16 +52,16 @@ export function startHeartbeat(channelId: string, send: Sender): void {
   log.info("Heartbeat started (proactive reminders + optional daily check-in).");
 }
 
-async function deliverDueReminders(channelId: string, send: Sender): Promise<void> {
+async function deliverDueReminders(channel: HeartbeatChannel): Promise<void> {
   for (const r of dueReminders()) {
     markDelivered(r.id); // mark first so a crash can't double-deliver
     try {
-      await deliverReminder(channelId, r, send);
+      await deliverReminder(channel, r);
     } catch (err) {
       log.error("Reminder delivery failed:", err instanceof Error ? err.message : String(err));
       // Fall back to a plain reminder so it isn't silently lost.
       try {
-        await send(r.chatId, `⏰ Reminder: ${r.text}`);
+        await channel.send(r.chatId, `⏰ Reminder: ${r.text}`);
       } catch {
         /* give up */
       }
@@ -63,31 +69,41 @@ async function deliverDueReminders(channelId: string, send: Sender): Promise<voi
   }
 }
 
-async function deliverReminder(channelId: string, r: Reminder, send: Sender): Promise<void> {
+async function deliverReminder(channel: HeartbeatChannel, r: Reminder): Promise<void> {
   // Serialize with any inbound turn for the same chat.
   const res = await withLock(r.chatId, () =>
     runTurn({
-      sessionKey: sessionKeyFor(channelId, r.chatType, r.chatId),
+      sessionKey: sessionKeyFor(channel.id, r.chatType, r.chatId),
       userText:
         `[Proactive reminder] Earlier you set a reminder to bring this up now: "${r.text}". ` +
         `Message the user about it naturally and concisely, in character.`,
-      channel: channelId,
+      channel: channel.id,
       chatType: r.chatType,
       chatId: r.chatId,
-      chatReply: async (t) => send(r.chatId, t),
+      chatReply: async (t) => channel.send(r.chatId, t),
+      chatSendFile: fileSender(channel, r.chatId),
     }),
   );
-  if (!res.silent && res.replyText) await send(r.chatId, res.replyText);
-  else if (res.silent) await send(r.chatId, `⏰ ${r.text}`); // ensure the reminder lands
+  if (!res.silent && res.replyText) await channel.send(r.chatId, res.replyText);
+  else if (res.silent) await channel.send(r.chatId, `⏰ ${r.text}`); // ensure the reminder lands
+}
+
+/** Bind the channel's file sender (if any) to one chat, for proactive turns. */
+function fileSender(
+  channel: HeartbeatChannel,
+  chatId: string,
+): ((file: OutboundFile) => Promise<void>) | undefined {
+  const sendFile = channel.sendFile?.bind(channel);
+  return sendFile ? (file) => sendFile(chatId, file) : undefined;
 }
 
 // --- recurring routines -------------------------------------------------------
 
-async function runDueRoutines(channelId: string, send: Sender): Promise<void> {
+async function runDueRoutines(channel: HeartbeatChannel): Promise<void> {
   for (const r of dueRoutines()) {
     advanceRoutine(r.id); // advance first so a crash skips to the next occurrence
     try {
-      await runRoutine(channelId, r, send);
+      await runRoutine(channel, r);
     } catch (err) {
       // Unlike reminders there is no plain-text fallback: the routine will
       // fire again at its next occurrence anyway.
@@ -96,24 +112,25 @@ async function runDueRoutines(channelId: string, send: Sender): Promise<void> {
   }
 }
 
-async function runRoutine(channelId: string, r: Routine, send: Sender): Promise<void> {
+async function runRoutine(channel: HeartbeatChannel, r: Routine): Promise<void> {
   log.info(`Running routine [${r.id}] (${describeSchedule(r.schedule)}).`);
   // Serialize with any inbound turn for the same chat.
   const res = await withLock(r.chatId, () =>
     runTurn({
-      sessionKey: sessionKeyFor(channelId, r.chatType, r.chatId),
+      sessionKey: sessionKeyFor(channel.id, r.chatType, r.chatId),
       userText:
         `[Scheduled routine ${r.id} — ${describeSchedule(r.schedule)}] Your standing instruction: ` +
         `"${r.text}". Do it now. If it is a check and there is genuinely nothing worth telling ` +
         `the user, reply exactly NO_REPLY.`,
-      channel: channelId,
+      channel: channel.id,
       chatType: r.chatType,
       chatId: r.chatId,
-      chatReply: async (t) => send(r.chatId, t),
+      chatReply: async (t) => channel.send(r.chatId, t),
+      chatSendFile: fileSender(channel, r.chatId),
     }),
   );
   // Routines respect silence — no fallback send (see module header).
-  if (!res.silent && res.replyText) await send(r.chatId, res.replyText);
+  if (!res.silent && res.replyText) await channel.send(r.chatId, res.replyText);
 }
 
 // --- optional daily HEARTBEAT.md check-in -----------------------------------
@@ -138,7 +155,7 @@ function markRanToday(): void {
   }
 }
 
-async function maybeDailyCheckIn(channelId: string, send: Sender): Promise<void> {
+async function maybeDailyCheckIn(channel: HeartbeatChannel): Promise<void> {
   const cfg = loadConfig();
   const chatId = cfg.heartbeatChat;
   if (!chatId) return; // check-ins are opt-in via CRABLITE_PRIMARY_CHAT
@@ -152,19 +169,20 @@ async function maybeDailyCheckIn(channelId: string, send: Sender): Promise<void>
   try {
     const res = await withLock(chatId, () =>
       runTurn({
-        sessionKey: sessionKeyFor(channelId, "direct", chatId),
+        sessionKey: sessionKeyFor(channel.id, "direct", chatId),
         userText:
           `[Heartbeat] It's your scheduled check-in. Guidance:\n${guidance}\n\n` +
           `Decide if there is anything genuinely worth proactively telling the user right now ` +
           `(due follow-ups, time-sensitive facts from memory). If yes, send a brief, useful message. ` +
           `If there is nothing worth interrupting them for, reply exactly NO_REPLY.`,
-        channel: channelId,
+        channel: channel.id,
         chatType: "direct",
         chatId,
-        chatReply: async (t) => send(chatId, t),
+        chatReply: async (t) => channel.send(chatId, t),
+        chatSendFile: fileSender(channel, chatId),
       }),
     );
-    if (!res.silent && res.replyText) await send(chatId, res.replyText);
+    if (!res.silent && res.replyText) await channel.send(chatId, res.replyText);
   } catch (err) {
     log.error("Heartbeat check-in failed:", err instanceof Error ? err.message : String(err));
   }
