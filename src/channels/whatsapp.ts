@@ -21,7 +21,9 @@ export class WhatsAppChannel implements Channel {
   private sock: any;
   private onInbound?: (m: InboundMessage) => Promise<void>;
   private stopped = false;
+  private intakePaused = false;
   private reconnectDelay = 2_000;
+  private reconnectTimer?: NodeJS.Timeout;
 
   async start(onInbound: (m: InboundMessage) => Promise<void>): Promise<void> {
     this.onInbound = onInbound;
@@ -29,8 +31,20 @@ export class WhatsAppChannel implements Channel {
     await this.connect();
   }
 
+  /**
+   * Stop feeding new inbound messages while keeping the socket OPEN, so turns
+   * still draining can deliver their replies. First step of graceful shutdown;
+   * stop() closes the socket afterwards. Instance state, so a reconnect during
+   * the drain stays paused too.
+   */
+  pauseIntake(): void {
+    this.intakePaused = true;
+  }
+
   async stop(): Promise<void> {
     this.stopped = true;
+    // A reconnect pending at stop time would recreate the socket mid-shutdown.
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     try {
       this.sock?.end?.(undefined);
     } catch {
@@ -109,7 +123,8 @@ export class WhatsAppChannel implements Channel {
       log.warn(
         `WhatsApp connection closed (code ${statusCode}); reconnecting in ${this.reconnectDelay}ms…`,
       );
-      setTimeout(() => {
+      this.reconnectTimer = setTimeout(() => {
+        if (this.stopped) return; // a shutdown arrived while this timer was pending
         this.connect().catch((e) => log.error("Reconnect failed:", String(e)));
       }, this.reconnectDelay);
       this.reconnectDelay = Math.min(this.reconnectDelay * 1.8, 30_000);
@@ -124,6 +139,7 @@ export class WhatsAppChannel implements Channel {
   }
 
   private async handleOne(m: any): Promise<void> {
+    if (this.intakePaused) return; // shutting down: draining, not accepting
     if (!m.message || m.key?.fromMe) return;
     const remoteJid: string = m.key.remoteJid ?? "";
     if (!remoteJid || remoteJid === "status@broadcast") return;

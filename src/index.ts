@@ -14,9 +14,10 @@ import { seedWorkspace } from "./memory/workspace.js";
 import { login, authStatus, isLoggedIn } from "./codex/auth.js";
 import { runCliChat, runCliOnce } from "./channels/cli.js";
 import { WhatsAppChannel } from "./channels/whatsapp.js";
-import { createInboundHandler } from "./handle.js";
+import { createInboundHandler, type InboundHandler } from "./handle.js";
 import { startDreamingScheduler } from "./dreaming-cron.js";
 import { startHeartbeat } from "./heartbeat.js";
+import { drainLocks } from "./util/lock.js";
 import { runDreaming } from "./memory/dreaming.js";
 import { loadSkills } from "./skills/loader.js";
 import { hasBinary } from "./skills/loader.js";
@@ -113,10 +114,68 @@ async function cmdWhatsApp(): Promise<void> {
   log.info(`Starting crablite on WhatsApp as "${cfg.agentName}" (model ${cfg.model}).`);
   const channel = new WhatsAppChannel();
   const handler = createInboundHandler("whatsapp");
-  await channel.start(handler);
-  startDreamingScheduler();
-  startHeartbeat(channel);
-  // Stay alive (socket + schedulers keep the event loop busy).
+  await channel.start(handler.onInbound);
+  const stopDreaming = startDreamingScheduler();
+  const stopHeartbeat = startHeartbeat(channel);
+  registerShutdown(channel, handler, [stopHeartbeat, stopDreaming]);
+  // Stay alive (socket + schedulers keep the event loop busy) until a
+  // SIGINT/SIGTERM triggers the graceful shutdown registered above.
+}
+
+// Bounded drain on shutdown: docker stop sends SIGTERM and waits
+// stop_grace_period (30s in docker-compose.yml) before SIGKILL — stay under it
+// so an in-flight turn is never killed mid-appendItems.
+const SHUTDOWN_DRAIN_MS = 25_000;
+
+/**
+ * Graceful shutdown for the WhatsApp run. On SIGINT/SIGTERM, in order: pause
+ * intake (no new inbound; socket stays OPEN so draining turns can still
+ * deliver replies), stop the proactive schedulers, force debounce-pending
+ * batches into the lock queue, drain in-flight and queued chat turns with a
+ * bounded grace, close the socket, then exit 0. Every step is individually
+ * guarded so a failing step can never skip the drain. A second signal during
+ * the drain forces an immediate exit.
+ */
+function registerShutdown(
+  channel: WhatsAppChannel,
+  handler: InboundHandler,
+  stopSchedulers: Array<() => void>,
+): void {
+  let draining = false;
+  const attempt = (what: string, fn: () => void): void => {
+    try {
+      fn();
+    } catch (err) {
+      log.warn(`Shutdown step failed (${what}):`, err instanceof Error ? err.message : String(err));
+    }
+  };
+  const shutdown = (signal: NodeJS.Signals): void => {
+    if (draining) {
+      log.warn(`Received ${signal} during drain — exiting immediately.`);
+      process.exit(1);
+    }
+    draining = true;
+    log.info(`Received ${signal} — draining in-flight turns (up to ${SHUTDOWN_DRAIN_MS / 1000}s)…`);
+    void (async () => {
+      attempt("pause intake", () => channel.pauseIntake()); // no new inbound, socket stays open
+      for (const stop of stopSchedulers) attempt("stop scheduler", stop); // no new proactive turns
+      attempt("flush pending batches", handler.flushPending); // debounced work enters the lock queue
+      const drained = await drainLocks(SHUTDOWN_DRAIN_MS); // never rejects
+      if (drained) log.info("Drained cleanly — bye.");
+      else log.warn("Drain timed out with work still pending — exiting anyway.");
+      try {
+        await channel.stop(); // replies are delivered (or timed out) — close the socket
+      } catch (err) {
+        log.warn(
+          "Shutdown step failed (close socket):",
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+      process.exit(0);
+    })();
+  };
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
 }
 
 async function cmdDream(): Promise<void> {

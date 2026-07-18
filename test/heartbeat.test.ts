@@ -15,6 +15,7 @@ vi.mock("../src/agent/runner.js", () => ({
 }));
 
 import { startHeartbeat } from "../src/heartbeat.js";
+import { runTurn } from "../src/agent/runner.js";
 
 let dir: string;
 afterEach(() => {
@@ -46,5 +47,25 @@ describe("heartbeat", () => {
     // it, then tick #1's stale snapshot delivers r2 a second time.
     expect(sends.filter((c) => c === "b@s")).toHaveLength(1);
     expect(sends.filter((c) => c === "a@s")).toHaveLength(1);
+  });
+
+  it("the stop handle prevents all future ticks (graceful shutdown contract)", async () => {
+    vi.useFakeTimers();
+    dir = tmpState();
+    ensureStateDirs();
+    addReminder({ text: "late", dueAt: Date.now() - 1000, chatId: "a@s", chatType: "direct" });
+
+    const sends: string[] = [];
+    const stop = startHeartbeat({
+      id: "whatsapp",
+      send: async (chatId: string) => {
+        sends.push(chatId);
+      },
+    });
+    stop(); // shutdown before the startup tick (10s) or any interval tick fires
+
+    await vi.advanceTimersByTimeAsync(1_000_000);
+    expect(sends).toEqual([]);
+    expect(vi.mocked(runTurn)).not.toHaveBeenCalled();
   });
 });

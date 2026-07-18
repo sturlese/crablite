@@ -32,7 +32,8 @@ export type HeartbeatChannel = {
   sendTyping?: (chatId: string, on: boolean) => Promise<void>;
 };
 
-export function startHeartbeat(channel: HeartbeatChannel): void {
+/** Start the proactive loop. Returns a stop handle (used by graceful shutdown). */
+export function startHeartbeat(channel: HeartbeatChannel): () => void {
   // A single reminder turn can run for up to the model idle timeout (~2 min),
   // longer than the 60s interval. setInterval does not await the previous run,
   // so without this guard two ticks overlap: the second delivers a reminder the
@@ -49,9 +50,16 @@ export function startHeartbeat(channel: HeartbeatChannel): void {
       running = false;
     }
   };
-  setInterval(() => void check(), 60_000); // every minute
-  setTimeout(() => void check(), 10_000); // and shortly after startup
+  const interval = setInterval(() => void check(), 60_000); // every minute
+  const initial = setTimeout(() => void check(), 10_000); // and shortly after startup
   log.info("Heartbeat started (proactive reminders + optional daily check-in).");
+  // Stopping only prevents future ticks; an in-flight check keeps running. At
+  // shutdown, drainLocks covers its per-chat turns (they run under withLock)
+  // but NOT the check's between-turns bookkeeping, which process exit cuts off.
+  return () => {
+    clearInterval(interval);
+    clearTimeout(initial);
+  };
 }
 
 async function deliverDueReminders(channel: HeartbeatChannel): Promise<void> {

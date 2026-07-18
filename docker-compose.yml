@@ -19,6 +19,9 @@ services:
     stdin_open: true # so `docker compose run` can show the QR / device-code prompts
     tty: true
     restart: unless-stopped
+    # Give graceful shutdown room: SIGTERM triggers an internal drain of up to
+    # 25s (SHUTDOWN_DRAIN_MS in src/index.ts) before the process exits itself.
+    stop_grace_period: 30s
     # Hardening: unprivileged, no capabilities, no privilege escalation, bounded.
     cap_drop:
       - ALL
