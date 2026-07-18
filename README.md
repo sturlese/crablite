@@ -277,7 +277,8 @@ search, recall, dreaming, flush), `skills/` (loader), `channels/` (types, whatsa
 
 **Every directory has an `index.md`** — purpose, entry points, what to reuse, anti‑patterns, data
 contracts, tests, common tasks. Start with [`src/index.md`](src/index.md) and read the relevant
-directory's map before changing code in it.
+directory's map before changing code in it; [`CONTRIBUTING.md`](CONTRIBUTING.md) is the entry point
+for changing the code at all.
 
 ---
 
@@ -298,6 +299,8 @@ auth/refresh, the Responses SSE parser, inbound admission, reminders — mocking
 (model/transport) and hardware (WhatsApp/TTY). Line coverage is gated at **≥75%** via
 `vitest.config.ts` (run `pnpm test:coverage` for the current figure); CI
 (`.github/workflows/ci.yml`) runs lint + typecheck + the coverage-gated suite on every PR.
+
+Conventions, checks to run before a PR, and the commit format: [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ---
 

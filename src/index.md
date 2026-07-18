@@ -46,8 +46,8 @@ cross-cutting rules.
   on purpose.
 - Do **not** read env vars ad hoc for behaviour that belongs in `Config`. Add a key to `config.ts`
   with a default, and an env override only if operators need it.
-- Do **not** hardcode the version string in more than one place — `version.ts` is the source (it is
-  hand-synced with `package.json`).
+- Do **not** hardcode the version string anywhere — `version.ts` re-exports it from `package.json`,
+  which is the single source. Bump it there (or via the release flow) and nowhere else.
 - Do **not** import `.ts` extensions in local imports. This is ESM: import `./foo.js` from
   `foo.ts`.
 
