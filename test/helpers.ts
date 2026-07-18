@@ -13,8 +13,6 @@ const CRABLITE_ENV = [
   "CRABLITE_ALLOW_FROM",
   "CRABLITE_DREAMING",
   "CRABLITE_PRIMARY_CHAT",
-  "CRABLITE_STT_API_KEY",
-  "OPENAI_API_KEY",
 ];
 
 /** Create a fresh temp state dir, point crablite at it, and clear stray env. */

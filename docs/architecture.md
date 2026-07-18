@@ -16,8 +16,10 @@ A map of the code and how a message flows through it.
   Prompt inputs assembled per turn:
     system-prompt.ts  ◄─ memory/workspace.ts (SOUL/IDENTITY/USER/MEMORY as "# Project Context")
                       ◄─ skills/loader.ts     (<available_skills> catalog, gated by requires.bins)
-                      ◄─ agent/tools.ts       (read/write/edit/exec/message/web_fetch)
+                      ◄─ agent/tools.ts       (read/write/edit/exec/message/send_file/react/web_fetch)
                       ◄─ memory/search.ts     (memory_search/memory_get)
+                      ◄─ agent/reminders.ts   (schedule_reminder)
+                      ◄─ agent/schedule-tools.ts (schedule_routine/list_schedules/cancel_schedule)
                       ◄─ agent/subagent.ts    (spawn_subagent)
 
   Persistence (~/.crablite):
@@ -38,7 +40,7 @@ A map of the code and how a message flows through it.
 | `codex/auth.ts` | Codex OAuth: device‑code + PKCE‑paste login, JWT identity, refresh, token storage. |
 | `codex/responses.ts` | Codex Responses API client: request shaping, SSE streaming, tool‑call extraction, idle timeout. |
 | `agent/tool.ts` | The `Tool`/`ToolContext` contract every tool provider implements. |
-| `agent/tools.ts` | The core tools `read/write/edit/exec/message/web_fetch`. |
+| `agent/tools.ts` | The core tools `read/write/edit/exec/message/send_file/react/web_fetch`. |
 | `agent/loop.ts` | `runAgentLoop` — the model↔tool primitive; returns final text + new transcript items. |
 | `agent/system-prompt.ts` | Ordered system‑prompt assembly (identity→tools→policy→skills→memory→project‑context→runtime). |
 | `agent/subagent.ts` | `spawn_subagent` tool + subagent system prompt; isolated child, depth cap. |
@@ -62,6 +64,14 @@ A map of the code and how a message flows through it.
 | `heartbeat.ts` | Proactive loop: deliver due reminders, run due routines, optional daily `HEARTBEAT.md` check-in. |
 | `media/stt.ts` | Voice-note transcription via the Codex credential (`gpt-4o-transcribe`); images use Codex directly. |
 | `media/files.ts` | Chat file transfer: inbound documents → workspace `inbox/` (dated, sanitized); mimetype guessing + size cap for `send_file`. |
+| `net/safe-fetch.ts` | SSRF‑hardened fetch backing `web_fetch`: scheme allowlist, private‑address rejection re‑checked on every redirect, timeout, size cap. |
+| `util/lock.ts` | `withLock(key, fn)` — keyed async mutex serializing per‑chat turns across the reactive and proactive paths. |
+
+> **Per‑directory maps.** Every source directory carries an `index.md` (purpose, entry points, what
+> to reuse, anti‑patterns, data contracts, tests, common tasks): `src/index.md`, `src/agent/`,
+> `src/channels/`, `src/codex/`, `src/memory/`, `src/session/`, `src/skills/`, `src/media/`,
+> `src/net/`, `src/util/`, plus `test/`, `skills/`, `workspace-template/` and `docs/`. Read the
+> directory's `index.md` before changing code in it.
 
 ## Request lifecycle
 
@@ -159,7 +169,7 @@ Three faithful additions from OpenClaw, kept minimal:
 | crablite | OpenClaw origin | What changed |
 |---|---|---|
 | `agent/loop.ts` | `pi-coding-agent` engine + `pi-embedded-runner/run.ts` | Hand‑rolled ~90‑line loop instead of the embedded engine + 2000‑line resilience loop. |
-| `agent/system-prompt.ts` | `src/agents/system-prompt.ts` (657+) | Same ordered sections, no cache boundary / registry / provider tuning. |
+| `agent/system-prompt.ts` | `src/agents/system-prompt.ts` | Same ordered sections, no cache boundary / registry / provider tuning. |
 | `memory/*` | `extensions/memory-core`, `src/memory`, `src/agents/workspace.ts` | Same file model + dreaming behavior; lexical search instead of LanceDB/QMD; no wiki/active‑memory. |
 | `skills/loader.ts` | `src/agents/skills/*` | Folder + `SKILL.md` + `requires.bins` + catalog; no install managers / 6‑tier precedence. |
 | `agent/subagent.ts` | `src/agents/subagent-spawn.ts`, `sessions_spawn` | Native isolated child + depth cap; no ACP, no background/parallel. |
