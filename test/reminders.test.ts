@@ -1,11 +1,16 @@
+import fs from "node:fs";
 import { describe, it, expect, afterEach } from "vitest";
 import { tmpState, cleanup } from "./helpers.js";
-import { ensureStateDirs } from "../src/paths.js";
+import { ensureStateDirs, paths } from "../src/paths.js";
 import {
   addReminder,
   dueReminders,
   pendingReminders,
   markDelivered,
+  claimReminder,
+  sweepAbandoned,
+  CLAIM_STALE_MS,
+  MAX_DELIVERY_ATTEMPTS,
   scheduleReminderTool,
 } from "../src/agent/reminders.js";
 
@@ -75,5 +80,122 @@ describe("reminders", () => {
       /Reminder set/,
     );
     expect(dueReminders(Date.now() + 20 * 60_000)).toHaveLength(1);
+  });
+});
+
+describe("at-least-once claims", () => {
+  it("a fresh claim hides the reminder from dueReminders until exactly CLAIM_STALE_MS", () => {
+    dir = tmpState();
+    ensureStateDirs();
+    const t0 = Date.now();
+    const r = addReminder({ text: "call", dueAt: t0 - 1000, chatId: "c@s", chatType: "direct" });
+    expect(dueReminders(t0)).toHaveLength(1);
+
+    claimReminder(r.id, t0);
+    expect(dueReminders(t0)).toHaveLength(0); // criterion 3: no same-process re-pick
+    expect(dueReminders(t0 + CLAIM_STALE_MS - 1)).toHaveLength(0); // still inside the window
+    expect(dueReminders(t0 + CLAIM_STALE_MS)).toHaveLength(1); // boundary is >=: re-admitted
+  });
+
+  it("a stale claim seeded on disk (crash mid-delivery) is due again", () => {
+    dir = tmpState();
+    ensureStateDirs();
+    const now = Date.now();
+    // What a killed process leaves behind: claimed, one attempt, never confirmed.
+    fs.writeFileSync(
+      paths.remindersFile(),
+      JSON.stringify({
+        version: 1,
+        reminders: [
+          {
+            id: "crashed",
+            text: "promise at risk",
+            dueAt: now - 60_000,
+            chatId: "c@s",
+            chatType: "direct",
+            createdAt: now - 120_000,
+            deliveringAt: now - CLAIM_STALE_MS,
+            attempts: 1,
+          },
+        ],
+      }),
+    );
+    expect(dueReminders(now).map((r) => r.id)).toEqual(["crashed"]);
+    expect(pendingReminders().map((r) => r.id)).toEqual(["crashed"]);
+  });
+
+  it("stops retrying after MAX_DELIVERY_ATTEMPTS but keeps the reminder pending", () => {
+    dir = tmpState();
+    ensureStateDirs();
+    const t0 = Date.now();
+    const r = addReminder({ text: "doomed", dueAt: t0 - 1000, chatId: "c@s", chatType: "direct" });
+    for (let i = 0; i < MAX_DELIVERY_ATTEMPTS; i++) {
+      claimReminder(r.id, t0 + i * CLAIM_STALE_MS);
+    }
+    // Long after every claim has gone stale: out of attempts, never due again…
+    expect(dueReminders(t0 + 10 * CLAIM_STALE_MS)).toHaveLength(0);
+    // …but doctor/list_schedules still surface the unkept promise.
+    expect(pendingReminders().map((x) => x.id)).toEqual([r.id]);
+  });
+
+  it("loads a version-1 record without the new fields unchanged", () => {
+    dir = tmpState();
+    ensureStateDirs();
+    const now = Date.now();
+    fs.writeFileSync(
+      paths.remindersFile(),
+      JSON.stringify({
+        version: 1,
+        reminders: [
+          {
+            id: "v1",
+            text: "old-format",
+            dueAt: now - 1000,
+            chatId: "c@s",
+            chatType: "direct",
+            createdAt: now - 5000,
+          },
+        ],
+      }),
+    );
+    expect(dueReminders(now)).toHaveLength(1); // due exactly as before
+    expect(pendingReminders()).toHaveLength(1); // pending exactly as before
+    const claimed = claimReminder("v1", now);
+    expect(claimed?.attempts).toBe(1); // additive fields start from absent
+    expect(claimed?.deliveringAt).toBe(now);
+  });
+
+  it("claimReminder on an unknown id returns null and writes nothing", () => {
+    dir = tmpState();
+    ensureStateDirs();
+    expect(claimReminder("no-such-id")).toBeNull();
+    expect(fs.existsSync(paths.remindersFile())).toBe(false); // no store created
+  });
+
+  it("sweepAbandoned stamps exhausted reminders exactly once (idempotent)", () => {
+    dir = tmpState();
+    ensureStateDirs();
+    const t0 = Date.now();
+    const r = addReminder({
+      text: "worn out",
+      dueAt: t0 - 1000,
+      chatId: "c@s",
+      chatType: "direct",
+    });
+    for (let i = 0; i < MAX_DELIVERY_ATTEMPTS; i++) claimReminder(r.id, t0 + i);
+
+    const first = sweepAbandoned(t0 + 1000);
+    expect(first.map((x) => x.id)).toEqual([r.id]); // newly stamped, reported once
+    expect(first[0]!.abandonedAt).toBe(t0 + 1000);
+    expect(sweepAbandoned(t0 + 2000)).toEqual([]); // second sweep: nothing new
+
+    expect(dueReminders(t0 + 10 * CLAIM_STALE_MS)).toHaveLength(0); // terminal: never due again
+    expect(pendingReminders().map((x) => x.id)).toEqual([r.id]); // but still listed
+
+    // A delivered reminder is never swept, even with exhausted attempts.
+    const ok = addReminder({ text: "fine", dueAt: t0 - 1000, chatId: "c@s", chatType: "direct" });
+    for (let i = 0; i < MAX_DELIVERY_ATTEMPTS; i++) claimReminder(ok.id, t0 + i);
+    markDelivered(ok.id);
+    expect(sweepAbandoned(t0 + 3000)).toEqual([]);
   });
 });

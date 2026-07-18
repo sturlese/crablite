@@ -16,7 +16,7 @@ cross-cutting rules.
 | --- | --- |
 | `index.ts` | CLI dispatch: `login`, `chat [--once]`, `whatsapp`/`start` (default), `dream`, `doctor`, `help`. Composition root for the WhatsApp run (channel + handler + schedulers) **and owner of graceful shutdown**: `registerShutdown` on SIGINT/SIGTERM — pause intake → stop schedulers → `flushPending` → `drainLocks(25s)` → close socket → exit 0 (a second signal exits 1; each step is error-isolated via `attempt`). |
 | `handle.ts` | **The shared inbound seam.** `createInboundHandler(channelId)` returns `InboundHandler = { onInbound, flushPending }`: `onInbound` is admission → dedupe → debounce → per-chat lock → delivery; `flushPending` is the shutdown hook that forces debounce-pending batches into the lock queue. Also exports `formatForModel` and `withTypingIndicator`. |
-| `heartbeat.ts` | `startHeartbeat(channel): () => void` — the proactive loop (due reminders, due routines, optional daily check-in). Returns a stop handle used by shutdown. |
+| `heartbeat.ts` | `startHeartbeat(channel): () => void` — the proactive loop; returns a stop handle used by shutdown. Reminders are delivered **at-least-once** (claim → rich turn → send(s) → confirm; plain `⏰` fallback), routines advance-first (at-most-once per occurrence), optional daily check-in. **Invariant:** the whole reminder protocol runs inside ONE `withLock(chatId)` scope — `deliverDueReminders` takes the lock, `deliverReminder` must never take it itself — so the shutdown drain can never exit between a successful send and its confirm (the gap that would guarantee a post-restart duplicate). |
 | `dreaming-cron.ts` | `startDreamingScheduler(): () => void` — runs `runDreaming` once a day at `dreamHour`. Returns a stop handle used by shutdown. |
 | `config.ts` | `loadConfig()` — flat config, file then env (env wins). `resetConfigCache()` for tests. |
 | `paths.ts` | **Every path in the system.** State layout, dir/secret helpers, containment helpers. |
@@ -32,7 +32,9 @@ cross-cutting rules.
   came from the model or from a JSON store. This is the filesystem containment boundary.
 - **`writeJsonFileAtomic` / `writeSecretFile`** for persisted state and secrets (atomic, `0600`).
 - **`withLock(chatId, fn)`** (`util/lock.ts`) around anything that runs a turn for a chat.
-- **`log` from `logger.ts`**, never `console.*`.
+- **`log` from `logger.ts`**, never `console.*`. Log-content posture: user content (reminder
+  text, message bodies) never goes to `error`/`warn` — log **ids and counts** at error and the
+  content at `debug` (the pattern set by `logAbandoned` in `heartbeat.ts`).
 - **`loadConfig()`** — it is cached; call it freely instead of threading config through parameters.
 
 ## Avoid / anti-patterns

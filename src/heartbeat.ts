@@ -6,9 +6,12 @@
 //
 // This is OpenClaw's heartbeat runner (src/infra/heartbeat-runner.ts) plus its
 // cron scheduler, reduced to the essentials: the agent can act without waiting
-// for a user message. Reminders must always land (plain-text fallback);
-// routines respect NO_REPLY — a monitoring routine that finds nothing stays
-// quiet, in the spirit of OpenClaw's standing orders.
+// for a user message. Reminders must always land: delivery is at-least-once
+// (claim → deliver → confirm, with plain-text fallback; see agent/reminders.ts)
+// because a lost promise is worse than a rare duplicate. Routines stay
+// advance-before-run (at-most-once per occurrence — they recur anyway) and
+// respect NO_REPLY — a monitoring routine that finds nothing stays quiet, in
+// the spirit of OpenClaw's standing orders.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -18,7 +21,14 @@ import { runTurn } from "./agent/runner.js";
 import { sessionKeyFor } from "./session/store.js";
 import { withTypingIndicator } from "./handle.js";
 import { withLock } from "./util/lock.js";
-import { dueReminders, markDelivered, type Reminder } from "./agent/reminders.js";
+import {
+  claimReminder,
+  dueReminders,
+  markDelivered,
+  sweepAbandoned,
+  MAX_DELIVERY_ATTEMPTS,
+  type Reminder,
+} from "./agent/reminders.js";
 import { advanceRoutine, describeSchedule, dueRoutines, type Routine } from "./agent/routines.js";
 import { todayStamp } from "./memory/workspace.js";
 import { log } from "./logger.js";
@@ -46,6 +56,11 @@ export function startHeartbeat(channel: HeartbeatChannel): () => void {
       await deliverDueReminders(channel);
       await runDueRoutines(channel);
       await maybeDailyCheckIn(channel);
+    } catch (err) {
+      // Last-resort net: a store read/write failure (ENOSPC/EACCES) anywhere
+      // above must not become an unhandled rejection from the void'ed tick —
+      // process-fatal under Node defaults. The next tick simply retries.
+      log.error("Heartbeat tick failed:", err instanceof Error ? err.message : String(err));
     } finally {
       running = false;
     }
@@ -63,41 +78,95 @@ export function startHeartbeat(channel: HeartbeatChannel): () => void {
 }
 
 async function deliverDueReminders(channel: HeartbeatChannel): Promise<void> {
+  // Surface crash-exhausted reminders first: a final attempt that died with
+  // the process (crash, drain-timeout kill) never reached the in-process
+  // abandonment path, so without this sweep it would sit as a silent zombie —
+  // out of retries, never logged, listed as pending forever.
+  try {
+    logAbandoned(sweepAbandoned());
+  } catch (err) {
+    // A store write can fail (ENOSPC/EACCES); the sweep must not kill the tick.
+    log.error("Abandonment sweep failed:", err instanceof Error ? err.message : String(err));
+  }
   for (const r of dueReminders()) {
-    markDelivered(r.id); // mark first so a crash can't double-deliver
+    // ONE lock scope covers the whole protocol (claim → turn → send(s) →
+    // confirm), so the shutdown drain — which awaits lock tails — cannot exit
+    // between a successful send and its confirm; that gap is what would
+    // guarantee a duplicate after restart. Mirrors the reactive path, which
+    // also delivers inside its lock (handle.ts process()). Typing stays
+    // outside the lock, as everywhere else.
     try {
-      await deliverReminder(channel, r);
+      await withTypingIndicator(typingFor(channel, r.chatId), () =>
+        withLock(r.chatId, () => deliverReminder(channel, r)),
+      );
     } catch (err) {
-      log.error("Reminder delivery failed:", err instanceof Error ? err.message : String(err));
-      // Fall back to a plain reminder so it isn't silently lost.
-      try {
-        await channel.send(r.chatId, `⏰ Reminder: ${r.text}`);
-      } catch {
-        /* give up */
+      // Store-write errors from claim/confirm propagate out of deliverReminder
+      // (see its docblock); contain them per reminder so one bad write cannot
+      // skip the remaining reminders or reject the whole tick.
+      log.error(
+        `Reminder [${r.id}] attempt errored:`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+}
+
+/**
+ * The complete at-least-once protocol for ONE reminder: claim → rich turn →
+ * send(s) → plain fallback on failure → confirm only after a successful send.
+ * MUST run inside withLock(r.chatId) (deliverDueReminders wraps it) and must
+ * not take the lock itself — runTurn is called lock-free here; its deferred
+ * memory flush chains safely on the same key. Never throws for DELIVERY
+ * failures (turn or send — the persisted claim carries the retry); store-write
+ * errors (claim/confirm/sweep, e.g. ENOSPC) DO propagate and are contained
+ * per-reminder by the caller's loop catch.
+ */
+async function deliverReminder(channel: HeartbeatChannel, r: Reminder): Promise<void> {
+  // Claim inside the lock. A null claim means the reminder was canceled
+  // (cancel_schedule) between the dueReminders() snapshot and now — a canceled
+  // promise must not be delivered.
+  const claimed = claimReminder(r.id);
+  if (!claimed) return;
+  try {
+    const res = await runTurn({
+      sessionKey: sessionKeyFor(channel.id, claimed.chatType, claimed.chatId),
+      userText:
+        `[Proactive reminder] Earlier you set a reminder to bring this up now: "${claimed.text}". ` +
+        `Message the user about it naturally and concisely, in character.`,
+      channel: channel.id,
+      chatType: claimed.chatType,
+      chatId: claimed.chatId,
+      chatReply: async (t) => channel.send(claimed.chatId, t),
+      chatSendFile: fileSender(channel, claimed.chatId),
+    });
+    if (!res.silent && res.replyText) await channel.send(claimed.chatId, res.replyText);
+    else if (res.silent) await channel.send(claimed.chatId, `⏰ ${claimed.text}`); // ensure the reminder lands
+    markDelivered(claimed.id);
+  } catch (err) {
+    log.error("Reminder delivery failed:", err instanceof Error ? err.message : String(err));
+    // Fall back to a plain reminder so it isn't silently lost.
+    try {
+      await channel.send(claimed.chatId, `⏰ Reminder: ${claimed.text}`);
+      markDelivered(claimed.id);
+    } catch {
+      // Do NOT confirm: the persisted claim keeps it out of the next ticks and
+      // retries it once stale — unless this was the final allowed attempt, in
+      // which case stamp it abandoned now so the failure is logged exactly once.
+      if ((claimed.attempts ?? 0) >= MAX_DELIVERY_ATTEMPTS) {
+        logAbandoned(sweepAbandoned());
       }
     }
   }
 }
 
-async function deliverReminder(channel: HeartbeatChannel, r: Reminder): Promise<void> {
-  // Serialize with any inbound turn for the same chat.
-  const res = await withTypingIndicator(typingFor(channel, r.chatId), () =>
-    withLock(r.chatId, () =>
-      runTurn({
-        sessionKey: sessionKeyFor(channel.id, r.chatType, r.chatId),
-        userText:
-          `[Proactive reminder] Earlier you set a reminder to bring this up now: "${r.text}". ` +
-          `Message the user about it naturally and concisely, in character.`,
-        channel: channel.id,
-        chatType: r.chatType,
-        chatId: r.chatId,
-        chatReply: async (t) => channel.send(r.chatId, t),
-        chatSendFile: fileSender(channel, r.chatId),
-      }),
-    ),
-  );
-  if (!res.silent && res.replyText) await channel.send(r.chatId, res.replyText);
-  else if (res.silent) await channel.send(r.chatId, `⏰ ${r.text}`); // ensure the reminder lands
+/** Log abandonments: ids and counts at error level; reminder text is user content and stays at debug (PII posture). */
+function logAbandoned(reminders: Reminder[]): void {
+  for (const r of reminders) {
+    log.error(
+      `Reminder [${r.id}] abandoned after ${r.attempts ?? 0} failed delivery attempts — will not retry.`,
+    );
+    log.debug(`Abandoned reminder [${r.id}] text: "${r.text}"`);
+  }
 }
 
 /** Bind the channel's file sender (if any) to one chat, for proactive turns. */

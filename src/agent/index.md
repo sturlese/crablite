@@ -17,7 +17,7 @@ for scheduled work (reminders and routines).
 | `system-prompt.ts` | `buildSystemPrompt(params)` — ordered sections: identity → tools → policy → skills → memory → recent activity → workspace → `# Project Context` → runtime. |
 | `subagent.ts` | `makeSpawnTool(opts)` → the `spawn_subagent` tool; `buildSubagentPrompt`. |
 | `prune.ts` | `pruneForContext`, `estimateChars`, `FLUSH_TRIGGER_CHARS`, `FLUSH_MIN_GROWTH_CHARS`. |
-| `reminders.ts` | One-shot commitment store + the `schedule_reminder` tool. |
+| `reminders.ts` | One-shot commitment store + the `schedule_reminder` tool. **At-least-once delivery protocol**: `claimReminder(id, now)` (phase 1: persist `deliveringAt`, count the attempt, BEFORE sending) and `markDelivered(id)` (phase 2: confirm, ONLY after a successful send). `dueReminders(now)` is the **single operational filter** — undelivered + due + (unclaimed or claim ≥ `CLAIM_STALE_MS` old) + attempts < `MAX_DELIVERY_ATTEMPTS` + not abandoned. `sweepAbandoned(now)` idempotently stamps crash-exhausted reminders (`abandonedAt`, terminal) and returns only the newly stamped. |
 | `routines.ts` | Recurring routine store + schedule maths (`computeNextRun`, `parseAt`, `describeSchedule`). No tools here. |
 | `schedule-tools.ts` | `SCHEDULE_TOOLS`: `schedule_routine`, `list_schedules`, `cancel_schedule`. |
 
@@ -57,7 +57,18 @@ for scheduled work (reminders and routines).
 - Do **not** put prompt policy in more than one place. Hard rules live in `system-prompt.ts` and in
   `workspace-template/AGENTS.md` (user-editable); workflow detail belongs in a skill.
 - Do **not** replay missed routine occurrences. `advanceRoutine` is called *before* the run and
-  recomputes from "now" — a crash skips forward, it never double-fires.
+  recomputes from "now" — a crash skips forward, it never double-fires. This is the deliberate
+  contrast with reminders: routines are at-most-once per occurrence (they recur anyway), reminders
+  are at-least-once (a lost promise is worse than a rare duplicate).
+- Do **not** select reminders for delivery any way other than `dueReminders()`. It is the single
+  operational filter; a second query path would bypass the claim/attempt/abandonment gates.
+- Do **not** call `markDelivered` before a send has actually succeeded, and do not skip
+  `claimReminder` before attempting one — the claim-first/confirm-after ordering *is* the
+  at-least-once guarantee.
+- Do **not** introduce `await` inside the store functions of `reminders.ts` or `routines.ts`. The
+  synchronous load → mutate → save shape is **load-bearing**: it is what makes heartbeat ticks and
+  tool calls interleaving-safe on the JSON files (commented at the top of the store section in
+  `reminders.ts`).
 - Do **not** add a new store file without a `writeJsonFileAtomic` write and a `version` field.
 
 ## Data & contracts
@@ -66,6 +77,13 @@ for scheduled work (reminders and routines).
 - `TurnResult = { replyText, silent }` (`runner.ts`); `silent` is true for `""` or `NO_REPLY`.
 - `LoopResult = { text, newItems }` (`loop.ts`).
 - `Reminder` (`reminders.ts`) → `~/.crablite/reminders.json`, `{ version: 1, reminders: [] }`.
+  At-least-once fields are **optional and additive** (`deliveringAt?`, `attempts?`, `abandonedAt?`)
+  so the store stays version 1 and pre-existing files load unchanged. `abandonedAt` is terminal:
+  never due again, still listed by `pendingReminders` and annotated
+  "⚠️ delivery failed, will not retry" by `list_schedules` (rendered text only — the tool schema is
+  untouched), still cancellable by id. Constants: `CLAIM_STALE_MS = 15 min` (post-crash retry
+  latency — within one process the heartbeat's `running` guard prevents double-pickup, not this
+  window), `MAX_DELIVERY_ATTEMPTS = 3`.
 - `Routine`, `RoutineSchedule` (`routines.ts`) → `~/.crablite/routines.json`,
   `{ version: 1, routines: [] }`. Schedules are `daily{at}` | `weekly{weekday,at}` |
   `every{minutes}`, local wall-clock, `MIN_EVERY_MINUTES = 5`.
@@ -76,9 +94,12 @@ for scheduled work (reminders and routines).
 `test/runner.test.ts` (including a dedicated "memory flush scheduling" describe: deferred flush
 off the reply path, serialization on the chat lock, CLI inline path, non-fatal failure),
 `test/loop.test.ts`, `test/tools.test.ts`, `test/prune.test.ts`, `test/system-prompt.test.ts`,
-`test/subagent.test.ts`, `test/reminders.test.ts`, `test/routines.test.ts`,
-`test/schedule-tools.test.ts`. Only the network (model transport) is mocked; the filesystem runs
-against a temp state dir from `test/helpers.ts`.
+`test/subagent.test.ts`, `test/reminders.test.ts` (including an "at-least-once claims" describe:
+claim/confirm phases, the `dueReminders` gates, idempotent abandonment sweep),
+`test/routines.test.ts`, `test/schedule-tools.test.ts` (including the abandoned-reminder
+annotation in `list_schedules`). Only the network (model transport) is mocked; the filesystem runs
+against a temp state dir from `test/helpers.ts`. The delivery side of the protocol is tested in
+`test/heartbeat.test.ts` (see `test/index.md`).
 
 ## Common tasks
 

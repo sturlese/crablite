@@ -58,10 +58,10 @@ A map of the code and how a message flows through it.
 | `channels/cli.ts` | Readline REPL exercising the same `runTurn`. |
 | `handle.ts` | Shared inbound seam, returned as `InboundHandler = { onInbound, flushPending }`: allowlist, group mention gating, dedupe, per‑chat debounce + serialization; renders sender names (groups) and reply‑quotes for the model; `flushPending` pushes debounce‑pending batches into the lock queue at shutdown. |
 | `dreaming-cron.ts` | Nightly scheduler for `runDreaming`; returns a stop handle. |
-| `agent/reminders.ts` | Reminder store + `schedule_reminder` tool — crablite's "commitments". |
+| `agent/reminders.ts` | Reminder store + `schedule_reminder` tool — crablite's "commitments". At‑least‑once delivery protocol: `claimReminder`/`markDelivered`, stale‑claim retry, attempt cap, terminal `abandonedAt` + `sweepAbandoned`. |
 | `agent/routines.ts` | Routine store: recurring schedules (daily/weekly/every), local time, next-run computation. |
 | `agent/schedule-tools.ts` | `schedule_routine` + `list_schedules` + `cancel_schedule` (reminders and routines). |
-| `heartbeat.ts` | Proactive loop: deliver due reminders, run due routines, optional daily `HEARTBEAT.md` check-in; returns a stop handle. |
+| `heartbeat.ts` | Proactive loop: deliver due reminders (at‑least‑once, whole claim→send→confirm protocol inside one `withLock` scope), run due routines (advance‑first), optional daily `HEARTBEAT.md` check-in; returns a stop handle. |
 | `media/stt.ts` | Voice-note transcription via the Codex credential (`gpt-4o-transcribe`); images use Codex directly. |
 | `media/files.ts` | Chat file transfer: inbound documents → workspace `inbox/` (dated, sanitized); mimetype guessing + size cap for `send_file`. |
 | `net/safe-fetch.ts` | SSRF‑hardened fetch backing `web_fetch`: scheme allowlist, private‑address rejection re‑checked on every redirect, timeout, size cap. |
@@ -114,8 +114,9 @@ failing step can never skip the drain:
 3. `handler.flushPending()` — debounce‑pending batches enter the lock queue (they were already
    marked read; dropping them would blue‑tick without replying).
 4. `drainLocks(25s)` (`SHUTDOWN_DRAIN_MS`) — awaits in‑flight and queued chat turns *and* work
-   queued during the drain (e.g. a deferred memory flush); resolves `false` on timeout, never
-   rejects.
+   queued during the drain (e.g. a deferred memory flush); because a reminder's whole
+   claim→send→confirm protocol runs inside one lock scope, the drain also cannot exit between a
+   successful send and its confirm. Resolves `false` on timeout, never rejects.
 5. `channel.stop()` — cancels any pending reconnect and closes the socket; then `exit(0)`.
 
 A second signal during the drain exits `1` immediately. Docker gives this room:
@@ -149,10 +150,21 @@ Three faithful additions from OpenClaw, kept minimal:
   `heartbeat.ts`): the agent calls `schedule_reminder` when it commits to a one‑shot follow‑up and
   `schedule_routine` for recurring duties; both land in JSON stores (`reminders.json`,
   `routines.json`) and a per‑minute heartbeat runs due items as short proactive turns in their chat
-  (serialized via `withLock`). Reminders always land (plain fallback); routines respect `NO_REPLY`
-  and are advanced **before** running (crash ⇒ skip to next occurrence, never double‑run; missed
-  occurrences reschedule from "now", no replay backlog). `list_schedules`/`cancel_schedule` manage
-  both. This distills OpenClaw's *commitments → heartbeat delivery* chain (`src/commitments/*`,
+  (serialized via `withLock`). **Reminder delivery is at‑least‑once**: a two‑phase protocol claims
+  the reminder (persisting `deliveringAt` and counting the attempt) *before* sending and confirms
+  (`markDelivered`) only *after* a send succeeded — a crash mid‑delivery leaves a persisted claim
+  that goes stale after 15 min (`CLAIM_STALE_MS`) and is retried, up to 3 attempts
+  (`MAX_DELIVERY_ATTEMPTS`), after which the reminder is stamped `abandonedAt` (terminal: never due
+  again, annotated "delivery failed" in `list_schedules`, logged exactly once via the idempotent
+  startup/tick sweep). The rich turn falls back to a plain `⏰` text on failure. The accepted trade:
+  if a send succeeded but the process died before the confirm, the reminder is delivered **again**
+  after restart — a rare duplicate is preferred to a silently lost promise. One cosmetic edge of the
+  same bias: if that pre‑confirm crash happened on the *final* attempt, the sweep labels the
+  reminder "delivery failed" even though the send landed — deliberately biased against duplicates.
+  Routines are the deliberate **contrast**: at‑most‑once per occurrence, because they recur anyway —
+  they respect `NO_REPLY` and are advanced **before** running (crash ⇒ skip to next occurrence,
+  never double‑run; missed occurrences reschedule from "now", no replay backlog).
+  `list_schedules`/`cancel_schedule` manage both. This distills OpenClaw's *commitments → heartbeat delivery* chain (`src/commitments/*`,
   `src/infra/heartbeat-runner.ts`) **and** its cron scheduler + agent cron tool (`src/cron/*`,
   `src/agents/tools/cron-tool.ts`): structured daily/weekly/interval schedules instead of croner
   expressions, chat‑session execution instead of isolated sessions, no delivery/webhook machinery.
