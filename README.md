@@ -3,7 +3,7 @@
 # 🦀 crablite
 
 <p>
-  <img src="https://img.shields.io/badge/node-%3E%3D20-339933?logo=nodedotjs&logoColor=white" alt="Node >= 20">&nbsp;<img src="https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white" alt="TypeScript">&nbsp;<img src="https://img.shields.io/badge/tests-149%20passing-2ea44f" alt="149 tests passing">&nbsp;<img src="https://img.shields.io/badge/coverage-~91%25-2ea44f" alt="~91% coverage">&nbsp;<img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license">&nbsp;<img src="https://img.shields.io/badge/inspired%20by-OpenClaw-e8543f" alt="inspired by OpenClaw">
+  <img src="https://img.shields.io/badge/node-%3E%3D20-339933?logo=nodedotjs&logoColor=white" alt="Node >= 20">&nbsp;<img src="https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white" alt="TypeScript">&nbsp;<img src="https://github.com/sturlese/crablite/actions/workflows/ci.yml/badge.svg" alt="CI status">&nbsp;<img src="https://img.shields.io/badge/coverage-%E2%89%A575%25%20enforced-2ea44f" alt="coverage >=75% enforced">&nbsp;<img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license">&nbsp;<img src="https://img.shields.io/badge/inspired%20by-OpenClaw-e8543f" alt="inspired by OpenClaw">
 </p>
 
 </div>
@@ -269,10 +269,15 @@ Responses API ↔ tools) → stream/persist`. Memory, skills, and subagents plug
 and prompt sections. The full map is in [`docs/architecture.md`](docs/architecture.md); deployment
 details in [`docs/deployment.md`](docs/deployment.md).
 
-`src/` layout: `codex/` (auth + Responses transport), `agent/` (loop, tools, system‑prompt, subagent,
-runner, prune, reminders), `memory/` (workspace, search, recall, dreaming, flush), `skills/` (loader),
-`channels/` (whatsapp, cli), `session/` (store), `net/` (SSRF‑safe fetch), `util/` (lock), `media/`
-(stt), plus `handle.ts`, `heartbeat.ts`, `dreaming-cron.ts`, `config.ts`, `paths.ts`, `index.ts`.
+`src/` layout: `codex/` (auth + Responses transport), `agent/` (loop, tool contract, tools,
+system‑prompt, subagent, runner, prune, reminders, routines, schedule‑tools), `memory/` (workspace,
+search, recall, dreaming, flush), `skills/` (loader), `channels/` (types, whatsapp, cli), `session/`
+(store), `net/` (SSRF‑safe fetch), `util/` (lock), `media/` (stt, files), plus `handle.ts`,
+`heartbeat.ts`, `dreaming-cron.ts`, `config.ts`, `paths.ts`, `logger.ts`, `version.ts`, `index.ts`.
+
+**Every directory has an `index.md`** — purpose, entry points, what to reuse, anti‑patterns, data
+contracts, tests, common tasks. Start with [`src/index.md`](src/index.md) and read the relevant
+directory's map before changing code in it.
 
 ---
 
@@ -287,10 +292,11 @@ pnpm test                 # Vitest unit suite
 pnpm test:coverage        # coverage report (thresholds enforced)
 ```
 
-Tests live in `test/` and cover the core logic — memory & dreaming, the tool sandbox, path
-containment, the SSRF guard, the agent loop, Codex auth/refresh, the Responses SSE parser, inbound
-admission, reminders — mocking only the network (model/transport) and hardware (WhatsApp/TTY).
-**Current coverage: ~91% of lines** (≥75% enforced via `vitest.config.ts`). CI
+Tests live in `test/` (conventions and helpers: [`test/index.md`](test/index.md)) and cover the core
+logic — memory & dreaming, the tool sandbox, path containment, the SSRF guard, the agent loop, Codex
+auth/refresh, the Responses SSE parser, inbound admission, reminders — mocking only the network
+(model/transport) and hardware (WhatsApp/TTY). Line coverage is gated at **≥75%** via
+`vitest.config.ts` (run `pnpm test:coverage` for the current figure); CI
 (`.github/workflows/ci.yml`) runs lint + typecheck + the coverage-gated suite on every PR.
 
 ---
