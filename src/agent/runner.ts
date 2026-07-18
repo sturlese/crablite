@@ -1,6 +1,8 @@
 // runTurn — the high-level entry both channels call. Mirrors OpenClaw's
 // getReplyFromConfig → runEmbeddedPiAgent, collapsed: load session → build
-// prompt + tools → (flush before context is dropped) → run the loop → persist.
+// prompt + tools → (schedule a memory flush before context is dropped —
+// deferred off the reply path via the per-chat lock when a chatId exists) →
+// run the loop → persist.
 
 import { paths } from "../paths.js";
 import { loadConfig } from "../config.js";
@@ -40,6 +42,7 @@ import {
 } from "./prune.js";
 import { runMemoryFlush } from "../memory/flush.js";
 import { runDreaming } from "../memory/dreaming.js";
+import { withLock } from "../util/lock.js";
 import { log } from "../logger.js";
 
 export type TurnResult = { replyText: string; silent: boolean };
@@ -77,8 +80,29 @@ export async function runTurn(params: {
     chars > FLUSH_TRIGGER_CHARS &&
     chars - getFlushedChars(params.sessionKey) > FLUSH_MIN_GROWTH_CHARS
   ) {
-    await runMemoryFlush(cfg.model, pruneForContext(session.items));
+    // Snapshot the flush input NOW: pruneForContext returns session.items itself
+    // when under budget and appendItems mutates it in place, so a deferred flush
+    // would otherwise leak this turn's new items into its input.
+    const flushInput = [...pruneForContext(session.items)];
+    // Record at scheduling time so another over-threshold turn cannot queue a
+    // duplicate flush while this one is still pending.
     setFlushedChars(params.sessionKey, chars);
+    const chatId = params.chatId;
+    if (chatId) {
+      // Defer the flush model call off this reply's critical path. runTurn runs
+      // inside withLock(chatId) (handle.ts / heartbeat.ts), so queueing on the
+      // same key lands the flush after this turn's reply is delivered and before
+      // any turn enqueued from this point on (FIFO from scheduling time). A turn
+      // already queued on the chat lock runs first — harmless, because the input
+      // was snapshotted and flushedChars recorded above. Failures stay non-fatal:
+      // runMemoryFlush logs and swallows; this catch is a last-resort guard.
+      void withLock(chatId, () => runMemoryFlush(cfg.model, flushInput)).catch((err) =>
+        log.warn("Deferred memory flush failed:", err instanceof Error ? err.message : String(err)),
+      );
+    } else {
+      // No per-chat lock to serialize on (CLI channel): flush inline as before.
+      await runMemoryFlush(cfg.model, flushInput);
+    }
   }
 
   // Build the user message: text + transcribed voice notes + images. The live
