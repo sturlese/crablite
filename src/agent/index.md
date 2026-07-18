@@ -10,7 +10,7 @@ for scheduled work (reminders and routines).
 
 | File | Role |
 | --- | --- |
-| `runner.ts` | **`runTurn(params)`** — the high-level entry both channels and the heartbeat call. Slash commands → session → memory flush → user item (STT/vision/documents) → prune → tools + prompt → loop → persist. Returns `{ replyText, silent }`. |
+| `runner.ts` | **`runTurn(params)`** — the high-level entry both channels and the heartbeat call. Slash commands → session (cached) → schedule memory flush → user item (STT/vision/documents) → prune → tools + prompt → loop → persist. Returns `{ replyText, silent }`. When over `FLUSH_TRIGGER_CHARS` and a `chatId` exists, the flush is **deferred**: input snapshot-copied and `setFlushedChars` recorded at scheduling time, then queued (not awaited) via `withLock(chatId, …)` so it runs after this reply. The CLI path (no `chatId`) keeps the inline awaited flush. |
 | `loop.ts` | **`runAgentLoop(params)`** — the primitive: call model, execute tool calls, feed outputs back, repeat until no tool calls or `maxRounds`. Returns final text + all new transcript items. |
 | `tool.ts` | The **`Tool` / `ToolContext` contract**. Depend on this, not on `tools.ts`, when you only need the type. |
 | `tools.ts` | `CORE_TOOLS`: `read`, `write`, `edit`, `exec`, `message`, `send_file`, `react`, `web_fetch`. |
@@ -41,6 +41,14 @@ for scheduled work (reminders and routines).
 - Do **not** append the new user item to the session *before* building the model input.
   `pruneForContext` returns `session.items` itself when under budget and `appendItems` mutates in
   place, so the turn would be sent twice. `runner.ts` documents this ordering — preserve it.
+- Do **not** hand `session.items` (or a `pruneForContext` result) to deferred work without a
+  snapshot copy. `loadSession` returns a shared, cached, mutable object; the deferred flush copies
+  its input at scheduling time for exactly this reason.
+- Do **not** await the deferred flush on the reply path, and do not move `setFlushedChars` to
+  completion time — recording at scheduling time is what prevents a second over-threshold turn
+  from queueing a duplicate flush while the first is pending. Ordering guarantee is
+  **FIFO-from-scheduling**: a turn already queued on the chat lock before the flush was scheduled
+  may run first (harmless — the input was snapshotted and the throttle already recorded).
 - Do **not** give subagents chat-facing tools. `subagent.ts` filters out `message`, `send_file` and
   `react` on purpose: there is no user on the other end of a child run.
 - Do **not** use `Math.max(1, Number(x))` for model-supplied numbers without a `Number.isFinite`
@@ -65,10 +73,12 @@ for scheduled work (reminders and routines).
 
 ## Tests
 
-`test/runner.test.ts`, `test/loop.test.ts`, `test/tools.test.ts`, `test/prune.test.ts`,
-`test/system-prompt.test.ts`, `test/subagent.test.ts`, `test/reminders.test.ts`,
-`test/routines.test.ts`, `test/schedule-tools.test.ts`. Only the network (model transport) is
-mocked; the filesystem runs against a temp state dir from `test/helpers.ts`.
+`test/runner.test.ts` (including a dedicated "memory flush scheduling" describe: deferred flush
+off the reply path, serialization on the chat lock, CLI inline path, non-fatal failure),
+`test/loop.test.ts`, `test/tools.test.ts`, `test/prune.test.ts`, `test/system-prompt.test.ts`,
+`test/subagent.test.ts`, `test/reminders.test.ts`, `test/routines.test.ts`,
+`test/schedule-tools.test.ts`. Only the network (model transport) is mocked; the filesystem runs
+against a temp state dir from `test/helpers.ts`.
 
 ## Common tasks
 

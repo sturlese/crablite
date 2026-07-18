@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { resetConfigCache } from "../src/config.js";
+import { resetSessionCache } from "../src/session/store.js";
 
 const CRABLITE_ENV = [
   "CRABLITE_STATE_DIR",
@@ -21,6 +22,9 @@ export function tmpState(): string {
   for (const k of CRABLITE_ENV) delete process.env[k];
   process.env.CRABLITE_STATE_DIR = dir;
   resetConfigCache();
+  // SessionKey does not include the state dir — drop cached sessions so this
+  // test's temp dir never observes another test's cached transcripts.
+  resetSessionCache();
   return dir;
 }
 

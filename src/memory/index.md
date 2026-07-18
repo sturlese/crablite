@@ -93,7 +93,10 @@ with only the model call mocked — so file layout, ranking and compaction are c
 - `dreaming.ts` **rehydrates from the live file** rather than trusting the stored snippet: if the
   user edited or deleted the note, the promotion is skipped. Memory follows the files, not a cache.
 - Flush is throttled twice: only above `FLUSH_TRIGGER_CHARS` *and* only after
-  `FLUSH_MIN_GROWTH_CHARS` of new transcript since the last flush (state in the session index).
+  `FLUSH_MIN_GROWTH_CHARS` of new transcript since the last flush (state in the session index,
+  recorded at scheduling time). In chats, the flush itself runs **deferred** on the chat lock,
+  off the reply's critical path — that scheduling lives in `agent/runner.ts`, not here (see
+  `src/agent/index.md`); `runMemoryFlush` is unchanged and stays best-effort.
 - `runDreaming(model?)` works without a model — promotion is pure logic; the model only writes the
   reflective `DREAMS.md` line, with a fallback string.
 - Stopwords in `search.ts` include Spanish-friendly characters in the tokenizer; the stopword list

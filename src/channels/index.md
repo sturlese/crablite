@@ -11,13 +11,15 @@ WhatsApp is the product; the CLI is the development/debug channel and exercises 
 | File | Role |
 | --- | --- |
 | `types.ts` | **The contract**: `Channel`, `InboundMessage`, `InboundMedia`, `OutboundFile`, `ChatType`. |
-| `whatsapp.ts` | `WhatsAppChannel implements Channel` — Baileys multi-device, QR link, reconnect with backoff, media download, presence/reactions/read receipts. Also exports `extractText` and `extractQuoted` (pure, tested). |
+| `whatsapp.ts` | `WhatsAppChannel implements Channel` — Baileys multi-device, QR link, reconnect with backoff, media download, presence/reactions/read receipts. Plus `pauseIntake()` (shutdown: stop feeding inbound while the socket stays open). Also exports `extractText` and `extractQuoted` (pure, tested). |
 | `cli.ts` | `runCliChat()` (readline REPL) and `runCliOnce(text)`. Fixed session key `crablite:cli:direct:cli`. |
 
 ## Use these
 
-- **Implement `Channel`** for a new transport, then wire it in `src/index.ts` with
-  `createInboundHandler("<id>")`. Nothing else should change.
+- **Implement `Channel`** for a new transport, then wire it in `src/index.ts`:
+  `createInboundHandler("<id>")` returns `InboundHandler = { onInbound, flushPending }` — pass
+  `handler.onInbound` to `channel.start(…)` and hand the whole handler to `registerShutdown`.
+  Nothing else should change.
 - **Optional capability methods** (`sendFile`, `react`, `setTyping`, `markRead` on
   `InboundMessage`; `sendFile`/`sendTyping` on `Channel`) — omit them if the transport cannot do
   it. Callers all guard for absence, and the corresponding tool degrades to a helpful message.
@@ -27,8 +29,15 @@ WhatsApp is the product; the CLI is the development/debug channel and exercises 
 
 ## Avoid / anti-patterns
 
-- Do **not** call `runTurn` from a channel. Channels produce `InboundMessage`s and hand them to the
-  handler from `handle.ts`; that is where admission and locking live.
+- Do **not** call `runTurn` from a channel. Channels produce `InboundMessage`s and feed them to
+  `handler.onInbound` from `handle.ts`; that is where admission and locking live.
+- Do **not** add `pauseIntake` to the `Channel` interface yet. It is deliberately
+  WhatsApp-specific: the CLI has no drain problem (its loop just ends), and generalizing a
+  shutdown surface for one long-running transport would be speculative. Promote it to the contract
+  only when a second long-running transport exists.
+- Do **not** close the socket to stop intake. `pauseIntake` keeps the socket OPEN so draining turns
+  can still deliver their replies; `stop()` (which also cancels a pending reconnect timer) comes
+  only after the drain.
 - Do **not** put admission, dedupe, mention-gating or debouncing in a channel. `handle.ts` owns all
   of it, so every transport behaves the same.
 - Do **not** download media before checking the declared size. `whatsapp.ts` rejects on
@@ -82,6 +91,11 @@ tested through `test/handle.test.ts` with a fake message.
 - Typing indicators expire on WhatsApp after ~10s; `withTypingIndicator` in `handle.ts` re-asserts
   every 8s and always clears. Channels only expose the raw on/off.
 - Reconnect uses exponential backoff capped at 30s and stops on `DisconnectReason.loggedOut`
-  (the session must be re-linked manually).
+  (the session must be re-linked manually). The reconnect timer checks `stopped` when it fires and
+  is cleared in `stop()`, so a shutdown cannot resurrect the socket; `intakePaused` is instance
+  state, so a reconnect *during* a drain stays paused.
+- Messages that arrive while intake is paused are dropped by `handleOne` (the still-open socket
+  has already received them at the transport level); WhatsApp does not redeliver them after a
+  restart. See `docs/deployment.md` for the operational note.
 - `markOnlineOnConnect: false` and `syncFullHistory: false` are deliberate: the agent should not
   mark the user's phone online or pull history it will never use.

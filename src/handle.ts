@@ -4,6 +4,10 @@
 //
 // Per-chat serialization uses the shared withLock(chatId) so proactive turns
 // (heartbeat/reminders) can never write the same session concurrently.
+//
+// createInboundHandler returns { onInbound, flushPending }: onInbound is the
+// per-message entry point; flushPending is the graceful-shutdown hook that
+// pushes debounce-pending batches into the lock queue so drainLocks sees them.
 
 import { loadConfig } from "./config.js";
 import { runTurn } from "./agent/runner.js";
@@ -14,7 +18,19 @@ import type { InboundMessage } from "./channels/types.js";
 
 type ChatState = { pending: InboundMessage[]; timer?: NodeJS.Timeout };
 
-export function createInboundHandler(channelId: string): (m: InboundMessage) => Promise<void> {
+export type InboundHandler = {
+  /** The per-message entry point channels feed (what channel.start consumes). */
+  onInbound: (m: InboundMessage) => Promise<void>;
+  /**
+   * Shutdown hook: force every debounce-pending batch into the per-chat lock
+   * queue immediately. Admitted messages are already marked read, so dropping
+   * them on exit would blue-tick without replying (WhatsApp won't redeliver);
+   * after this, drainLocks can await them like any other queued turn.
+   */
+  flushPending: () => void;
+};
+
+export function createInboundHandler(channelId: string): InboundHandler {
   const cfg = loadConfig();
   const chats = new Map<string, ChatState>();
   const seen = new Set<string>();
@@ -79,7 +95,7 @@ export function createInboundHandler(channelId: string): (m: InboundMessage) => 
     );
   }
 
-  return async function onInbound(m: InboundMessage): Promise<void> {
+  async function onInbound(m: InboundMessage): Promise<void> {
     if (!m.text.trim() && !m.media?.length) return; // allow media-only messages
     if (!remember(`${m.chatId}:${m.id}`)) return; // dedupe
     if (!admit(m)) {
@@ -96,7 +112,14 @@ export function createInboundHandler(channelId: string): (m: InboundMessage) => 
     st.pending.push(m);
     if (st.timer) clearTimeout(st.timer);
     st.timer = setTimeout(() => flush(m.chatId), Math.max(0, cfg.debounceMs));
-  };
+  }
+
+  function flushPending(): void {
+    // Copy the keys: flush() deletes entries from the map while we iterate.
+    for (const chatId of [...chats.keys()]) flush(chatId);
+  }
+
+  return { onInbound, flushPending };
 }
 
 /**

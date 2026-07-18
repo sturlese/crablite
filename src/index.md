@@ -14,10 +14,10 @@ cross-cutting rules.
 
 | File | Role |
 | --- | --- |
-| `index.ts` | CLI dispatch: `login`, `chat [--once]`, `whatsapp`/`start` (default), `dream`, `doctor`, `help`. Also the composition root for the WhatsApp run (channel + handler + schedulers). |
-| `handle.ts` | **The shared inbound seam.** `createInboundHandler(channelId)` — admission, dedupe, debounce, per-chat lock, delivery. Also exports `formatForModel` and `withTypingIndicator`. |
-| `heartbeat.ts` | `startHeartbeat(channel)` — the proactive loop (due reminders, due routines, optional daily check-in). |
-| `dreaming-cron.ts` | `startDreamingScheduler()` — runs `runDreaming` once a day at `dreamHour`. |
+| `index.ts` | CLI dispatch: `login`, `chat [--once]`, `whatsapp`/`start` (default), `dream`, `doctor`, `help`. Composition root for the WhatsApp run (channel + handler + schedulers) **and owner of graceful shutdown**: `registerShutdown` on SIGINT/SIGTERM — pause intake → stop schedulers → `flushPending` → `drainLocks(25s)` → close socket → exit 0 (a second signal exits 1; each step is error-isolated via `attempt`). |
+| `handle.ts` | **The shared inbound seam.** `createInboundHandler(channelId)` returns `InboundHandler = { onInbound, flushPending }`: `onInbound` is admission → dedupe → debounce → per-chat lock → delivery; `flushPending` is the shutdown hook that forces debounce-pending batches into the lock queue. Also exports `formatForModel` and `withTypingIndicator`. |
+| `heartbeat.ts` | `startHeartbeat(channel): () => void` — the proactive loop (due reminders, due routines, optional daily check-in). Returns a stop handle used by shutdown. |
+| `dreaming-cron.ts` | `startDreamingScheduler(): () => void` — runs `runDreaming` once a day at `dreamHour`. Returns a stop handle used by shutdown. |
 | `config.ts` | `loadConfig()` — flat config, file then env (env wins). `resetConfigCache()` for tests. |
 | `paths.ts` | **Every path in the system.** State layout, dir/secret helpers, containment helpers. |
 | `logger.ts` | `log.{debug,info,warn,error}` + `makeBaileysLogger()`. |
@@ -56,6 +56,8 @@ cross-cutting rules.
 - `Config` (`config.ts`) — the whole tunable surface; see the README table for defaults.
 - `paths` (`paths.ts`) — the on-disk layout contract; changing a key is a migration.
 - `InboundMessage` / `Channel` (`channels/types.ts`) — the channel contract.
+- `InboundHandler = { onInbound, flushPending }` (`handle.ts`) — what a channel's `start` consumes
+  (`handler.onInbound`) plus the shutdown hook.
 - `ResponseItem` (`codex/responses.ts`) — the closed union persisted per transcript line.
 - `SessionKey` (`session/store.ts`) — branded string; only `sessionKeyFor` can produce one.
 - `HeartbeatChannel` (`heartbeat.ts`) — the narrow slice of `Channel` the proactive loop needs.
@@ -77,6 +79,7 @@ adapters are excluded from coverage thresholds (`vitest.config.ts`) as thin I/O 
 | Change how a message is rendered for the model | `handle.ts` (`formatForModel`) |
 | Change typing-indicator behaviour | `handle.ts` (`withTypingIndicator`) + the channel's `sendTyping` |
 | Add a proactive behaviour | `heartbeat.ts` (and a store under `agent/`) |
+| Change shutdown ordering / drain budget | `index.ts` (`registerShutdown`, `SHUTDOWN_DRAIN_MS` — keep under compose's `stop_grace_period: 30s`) |
 | Add a state file | `paths.ts` first, then the module that owns it |
 
 ## Notes
@@ -85,5 +88,9 @@ adapters are excluded from coverage thresholds (`vitest.config.ts`) as thin I/O 
   are the primary in-code documentation.
 - `handle.ts` is imported by `heartbeat.ts` (for `withTypingIndicator`) — the dependency points from
   proactive to reactive, not the reverse. Keep it that way to avoid a cycle.
-- Schedulers (`setInterval`) are what keep the WhatsApp process alive; `index.ts` deliberately has
-  no explicit keep-alive.
+- The WhatsApp process stays alive implicitly (socket + scheduler timers keep the event loop busy)
+  until SIGINT/SIGTERM triggers the graceful shutdown registered in `index.ts`. New steps go inside
+  `registerShutdown` in the documented order — intake must stop **before** the drain, or
+  `drainLocks` chases a moving target.
+- Stopping a scheduler only prevents future ticks; an in-flight heartbeat check keeps running, and
+  its per-chat turns are covered by `drainLocks` because they run under `withLock`.

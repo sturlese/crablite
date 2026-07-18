@@ -30,11 +30,12 @@ function setLastRunDay(day: string): void {
   }
 }
 
-export function startDreamingScheduler(): void {
+/** Start the daily scheduler. Returns a stop handle (used by graceful shutdown). */
+export function startDreamingScheduler(): () => void {
   const cfg = loadConfig();
   if (!cfg.dreaming) {
     log.info("Dreaming is disabled (config.dreaming = false).");
-    return;
+    return () => {};
   }
 
   const check = async () => {
@@ -52,9 +53,13 @@ export function startDreamingScheduler(): void {
   };
 
   // Check every 30 minutes (and once shortly after startup).
-  setInterval(() => void check(), 30 * 60_000);
-  setTimeout(() => void check(), 5_000);
+  const interval = setInterval(() => void check(), 30 * 60_000);
+  const initial = setTimeout(() => void check(), 5_000);
   log.info(
     `Dreaming scheduled daily around ${String(cfg.dreamHour).padStart(2, "0")}:00 local time.`,
   );
+  return () => {
+    clearInterval(interval);
+    clearTimeout(initial);
+  };
 }
