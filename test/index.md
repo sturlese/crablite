@@ -11,14 +11,19 @@ admission, scheduling, and the proactive loop. Only the network (model/transport
 
 | File | Role |
 | --- | --- |
-| `helpers.ts` | **Start here.** `tmpState()` (isolated state dir + cleared env + config cache reset), `cleanup(dir)`, `fakeJwt(payload)`. |
+| `helpers.ts` | **Start here.** `tmpState()` (isolated state dir + cleared env + config **and session** cache resets), `cleanup(dir)`, `fakeJwt(payload)`. |
 | `vitest.config.ts` (repo root) | Include glob `test/**/*.test.ts`, `isolate: true`, coverage provider/thresholds and exclusions. |
 
 ## Use these
 
 - **`tmpState()` in `beforeEach` and `cleanup()` in `afterEach`.** It creates a fresh
-  `CRABLITE_STATE_DIR`, deletes stray `CRABLITE_*` env vars, and calls `resetConfigCache()` —
-  without that last step a config cached by an earlier test leaks into this one.
+  `CRABLITE_STATE_DIR`, deletes stray `CRABLITE_*` env vars, and calls `resetConfigCache()` **and**
+  `resetSessionCache()` — without those resets, a config or a cached session from an earlier test
+  leaks into this one (`SessionKey` does not include the state dir, so the session cache would
+  happily serve another test's transcripts). Every test file uses it, including `handle.test.ts`.
+- **`drainLocks(…)` to settle queued lock work** before asserting — the pattern in
+  `handle.test.ts` (flushPending) and `runner.test.ts` (deferred flush): it awaits everything
+  queued on the shared lock map without guessing timeouts.
 - **`fakeJwt({...})`** to build credentials with real identity/expiry claims.
 - **Real files over mocked `fs`.** The workspace layout, atomic writes and permissions are part of
   the contract; testing them for real is why `tmpState` exists.
@@ -70,3 +75,11 @@ Coverage thresholds (enforced in CI): lines/statements/functions 75%, branches 6
   overlap-guard and fallback logic, and has two dedicated test files.
 - Tests are the executable specification for the trickier invariants (flush throttling, promotion
   gates, the reminder double-delivery guard). Read them before changing those behaviours.
+- The `perf/turn-hot-path` behaviours have dedicated describes: the session cache in
+  `store.test.ts` ("session cache" — object identity + reset), `drainLocks` in `lock.test.ts`
+  (empty map, in-flight work, mid-drain re-sweep, timeout ⇒ `false`), deferred flush scheduling in
+  `runner.test.ts` ("runTurn memory flush scheduling"), and `flushPending` in `handle.test.ts`
+  ("flushPending (graceful shutdown)").
+- The timeout case in `lock.test.ts` is deliberately **last in its file**: its never-settling task
+  leaves a permanent tail in the module-level lock map, poisoning any later `withLock`/`drainLocks`
+  in the same file.

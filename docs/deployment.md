@@ -83,6 +83,12 @@ confirmation before sending.
 | Follow logs | `docker compose logs -f` |
 | Stop | `docker compose down` (the `crablite-data` volume persists) |
 
+Stopping is graceful: on SIGTERM crablite pauses intake and drains in‑flight turns for up to 25s
+before exiting (`stop_grace_period: 30s` in `docker-compose.yml` stays above that internal cap).
+Note that messages **arriving during** the drain window are acked at the transport level by the
+still‑open socket but not processed, and WhatsApp does not redeliver them after restart — senders
+should assume a message sent while the bot is shutting down is dropped.
+
 Nightly dreaming runs automatically inside the `whatsapp` process (default ~03:00 local; set the
 container `TZ` env or `dreamHour` in config).
 
