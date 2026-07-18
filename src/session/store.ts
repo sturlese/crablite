@@ -2,6 +2,12 @@
 // sessionKey to a sessionId + transcript file; the transcript is append-only
 // JSONL. We store Responses API items directly, so "resume" is just reloading
 // the input array.
+//
+// Sessions are cached in-process after the first load, so a turn does not
+// re-read and re-parse the whole (append-only, ever-growing) transcript on
+// every message. Safe because this process is the transcript's only writer
+// and withLock(chatId) serializes turns per chat; appendItems mutates the
+// cached Session's items in place, keeping memory and disk consistent.
 
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -40,6 +46,19 @@ export type Session = {
   items: ResponseItem[]; // Responses API input items, in order
 };
 
+// One Session object per key; loadSession returns the cached object itself so
+// every caller shares the same items array that appendItems keeps in sync.
+const sessionCache = new Map<SessionKey, Session>();
+
+/**
+ * Test-facing (mirrors resetConfigCache): drop every cached session. Tests
+ * swap CRABLITE_STATE_DIR per test and SessionKey does not include the state
+ * dir, so a stale cache would leak one test's sessions into the next.
+ */
+export function resetSessionCache(): void {
+  sessionCache.clear();
+}
+
 function readIndex(): SessionIndex {
   const file = paths.sessionsIndex();
   if (!fs.existsSync(file)) return {};
@@ -77,6 +96,9 @@ function loadItems(file: string): ResponseItem[] {
 }
 
 export function loadSession(sessionKey: SessionKey): Session {
+  const cached = sessionCache.get(sessionKey);
+  if (cached) return cached;
+
   ensureDir(paths.sessionsDir());
   const index = readIndex();
   let entry = index[sessionKey];
@@ -95,7 +117,14 @@ export function loadSession(sessionKey: SessionKey): Session {
     );
   }
 
-  return { sessionKey, sessionId: entry.sessionId, file: entry.file, items: loadItems(entry.file) };
+  const session: Session = {
+    sessionKey,
+    sessionId: entry.sessionId,
+    file: entry.file,
+    items: loadItems(entry.file),
+  };
+  sessionCache.set(sessionKey, session);
+  return session;
 }
 
 /** Append items to the transcript (and in-memory list) and touch the index. */
@@ -115,6 +144,7 @@ export function appendItems(session: Session, items: ResponseItem[]): void {
 
 /** Start a fresh conversation for this key (used by `/reset`). */
 export function resetSession(sessionKey: SessionKey): void {
+  sessionCache.delete(sessionKey); // the next loadSession starts fresh
   const index = readIndex();
   const entry = index[sessionKey];
   if (entry) {
