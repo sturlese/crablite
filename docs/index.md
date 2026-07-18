@@ -17,6 +17,7 @@ with the per-directory `index.md` files they form the system map.
 | Question | Document |
 | --- | --- |
 | What is this, what can it do, how do I start? | `/README.md` |
+| I am about to change the code — where do I start? | `/CONTRIBUTING.md` |
 | How does a message flow through the code? | `docs/architecture.md` |
 | How do I run and operate it? | `docs/deployment.md` |
 | What lives in this directory, what do I reuse, what must I not do? | that directory's `index.md` |
@@ -67,7 +68,8 @@ Markdown.
 
 ## Notes
 
-- `architecture.md` cites OpenClaw file paths and line numbers as provenance. They are historical
-  references to the upstream project, not paths in this repository.
+- `architecture.md` cites OpenClaw file paths as provenance. They are references to the upstream
+  project, not paths in this repository — keep them at file granularity, since line numbers in
+  another repo rot silently.
 - Deployment artifacts referenced by `deployment.md` live at the repo root: `Dockerfile`,
   `docker-compose.yml`, `.env.example`.
