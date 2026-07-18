@@ -109,8 +109,11 @@ const listSchedulesTool: Tool = {
     if (reminders.length) {
       out.push("Reminders (one-shot):");
       for (const r of reminders) {
+        // Abandoned = out of delivery attempts, never confirmed. Still listed
+        // (and cancellable) but it must not read as a live pending reminder.
+        const failed = r.abandonedAt ? " — ⚠️ delivery failed, will not retry" : "";
         out.push(
-          `- [${r.id.slice(0, 8)}] due ${new Date(r.dueAt).toLocaleString()}${chatLabel(r.chatId)} — "${r.text}"`,
+          `- [${r.id.slice(0, 8)}] due ${new Date(r.dueAt).toLocaleString()}${chatLabel(r.chatId)} — "${r.text}"${failed}`,
         );
       }
     }

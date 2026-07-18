@@ -2,7 +2,13 @@ import { describe, it, expect, afterEach } from "vitest";
 import { tmpState, cleanup } from "./helpers.js";
 import { ensureStateDirs } from "../src/paths.js";
 import { SCHEDULE_TOOLS } from "../src/agent/schedule-tools.js";
-import { addReminder, pendingReminders } from "../src/agent/reminders.js";
+import {
+  addReminder,
+  claimReminder,
+  pendingReminders,
+  sweepAbandoned,
+  MAX_DELIVERY_ATTEMPTS,
+} from "../src/agent/reminders.js";
 import { allRoutines } from "../src/agent/routines.js";
 
 let dir: string;
@@ -120,5 +126,31 @@ describe("list_schedules / cancel_schedule", () => {
     expect(await tool("cancel_schedule").execute({ id: "deadbeef" }, ctx)).toMatch(
       /ERROR: no reminder/,
     );
+  });
+
+  it("labels an abandoned reminder as failed and leaves live ones unlabeled", async () => {
+    setup();
+    addReminder({
+      text: "live one",
+      dueAt: Date.now() + 60_000,
+      chatId: "me@s",
+      chatType: "direct",
+    });
+    const dead = addReminder({
+      text: "dead one",
+      dueAt: Date.now() - 60_000,
+      chatId: "me@s",
+      chatType: "direct",
+    });
+    for (let i = 0; i < MAX_DELIVERY_ATTEMPTS; i++) claimReminder(dead.id, Date.now());
+    sweepAbandoned();
+
+    const out = String(await tool("list_schedules").execute({}, ctx));
+    const lines = out.split("\n");
+    const deadLine = lines.find((l) => l.includes("dead one"));
+    const liveLine = lines.find((l) => l.includes("live one"));
+    expect(deadLine).toContain("delivery failed, will not retry"); // annotated, still listed
+    expect(liveLine).toBeDefined();
+    expect(liveLine).not.toContain("delivery failed"); // live reminders stay clean
   });
 });
