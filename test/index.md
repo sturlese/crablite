@@ -74,12 +74,19 @@ Coverage thresholds (enforced in CI): lines/statements/functions 75%, branches 6
 - `heartbeat.ts` is deliberately **not** excluded from coverage: it carries real delivery,
   overlap-guard and fallback logic, and has two dedicated test files.
 - Tests are the executable specification for the trickier invariants (flush throttling, promotion
-  gates, the reminder double-delivery guard). Read them before changing those behaviours.
-- The `perf/turn-hot-path` behaviours have dedicated describes: the session cache in
+  gates, the reminder at-least-once claim/confirm ordering). Read them before changing those
+  behaviours.
+- The hot-path/shutdown behaviours have dedicated describes: the session cache in
   `store.test.ts` ("session cache" — object identity + reset), `drainLocks` in `lock.test.ts`
   (empty map, in-flight work, mid-drain re-sweep, timeout ⇒ `false`), deferred flush scheduling in
   `runner.test.ts` ("runTurn memory flush scheduling"), and `flushPending` in `handle.test.ts`
   ("flushPending (graceful shutdown)").
+- The reminder at-least-once protocol likewise: the store phases in `reminders.test.ts`
+  ("at-least-once claims" — claim/confirm, `dueReminders` gates, idempotent sweep), delivery in
+  `heartbeat.test.ts` ("heartbeat at-least-once delivery" — stale-claim retry, abandonment at
+  exactly the third failed attempt with a single id-only error log, the crash-exhausted zombie
+  sweep, the cancel-between-snapshot-and-claim race), and the "delivery failed" annotation in
+  `schedule-tools.test.ts`.
 - The timeout case in `lock.test.ts` is deliberately **last in its file**: its never-settling task
   leaves a permanent tail in the module-level lock map, poisoning any later `withLock`/`drainLocks`
   in the same file.

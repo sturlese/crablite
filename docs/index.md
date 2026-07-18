@@ -49,8 +49,10 @@ with the per-directory `index.md` files they form the system map.
 Numbers stated in these docs that must be re-checked when the code changes: the promotion ranking
 weights and gates (`src/memory/dreaming.ts`), the context/flush budgets (`src/agent/prune.ts`), the
 20 MB file cap (`src/media/files.ts`), config defaults (`src/config.ts`), coverage thresholds
-(`vitest.config.ts`), and the shutdown pair — 25s internal drain (`SHUTDOWN_DRAIN_MS`,
-`src/index.ts`) under 30s `stop_grace_period` (`docker-compose.yml`).
+(`vitest.config.ts`), the shutdown pair — 25s internal drain (`SHUTDOWN_DRAIN_MS`,
+`src/index.ts`) under 30s `stop_grace_period` (`docker-compose.yml`) — and the reminder delivery
+constants — 15 min stale-claim window (`CLAIM_STALE_MS`) and 3 attempts
+(`MAX_DELIVERY_ATTEMPTS`), both in `src/agent/reminders.ts`.
 
 ## Tests
 

@@ -213,9 +213,12 @@ scheduler**, distilled:
 - **`list_schedules`** and **`cancel_schedule`** let you inspect and stop anything in conversation —
   a commitment is never a dead‑end.
 - A **heartbeat** loop checks every minute and runs whatever is due **on its own** — a short
-  proactive turn in that chat so the message is natural and in‑character. Reminders always land
-  (plain‑text fallback if the model fails); **routines respect `NO_REPLY`**, so a monitoring routine
-  that finds nothing stays quiet. Missed occurrences (e.g. downtime) are rescheduled, not replayed.
+  proactive turn in that chat so the message is natural and in‑character. Reminder delivery is
+  **at‑least‑once**: a plain‑text fallback covers a failed rich turn, a crash mid‑delivery is
+  retried (up to 3 attempts, ~15 min apart), and only then is the reminder marked
+  "delivery failed" in `list_schedules` — the rare duplicate is preferred to a silently lost
+  promise. **Routines respect `NO_REPLY`**, so a monitoring routine that finds nothing stays
+  quiet. Missed occurrences (e.g. downtime) are rescheduled, not replayed.
 - Optionally, set `CRABLITE_PRIMARY_CHAT` (a WhatsApp chat id) and the agent will do a **once‑daily
   check‑in** at `heartbeatHour`, guided by `workspace/HEARTBEAT.md`. By default it stays quiet
   (`NO_REPLY`) unless there's something genuinely worth telling you.
