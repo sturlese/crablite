@@ -94,3 +94,48 @@ describe("session cache", () => {
     cleanup(first);
   });
 });
+
+describe("session store crash durability", () => {
+  it("does not fuse (and lose) a later append onto a crash-torn last line", () => {
+    dir = tmpState();
+    const s = loadSession("k1");
+    appendItems(s, [userMsg("good")]);
+    // A crash mid-write leaves a partial JSON line with NO trailing newline.
+    fs.appendFileSync(s.file, '{"ts":1,"item":{"type":"message","role":"user","content":[{"typ');
+    resetSessionCache(); // process restart
+
+    const afterCrash = loadSession("k1");
+    expect(afterCrash.items).toHaveLength(1); // the torn partial is skipped; "good" survives
+    appendItems(afterCrash, [userMsg("after")]); // a clean append after the torn tail
+    resetSessionCache(); // restart again
+
+    const cold = loadSession("k1");
+    // Without the fix, "after" fuses onto the orphaned bytes into one unparseable
+    // line and is lost, leaving only "good".
+    expect(cold.items).toHaveLength(2);
+    expect(JSON.stringify(cold.items[1])).toContain("after");
+  });
+
+  it("recovers a complete-but-unterminated last record instead of fusing it away", () => {
+    dir = tmpState();
+    const s = loadSession("k1");
+    appendItems(s, [userMsg("good")]);
+    // A crash truncated right after a COMPLETE record but before its newline: valid
+    // JSON, just missing the trailing \n — so it still loads.
+    fs.appendFileSync(s.file, JSON.stringify({ ts: 1, item: userMsg("recovered") }));
+    resetSessionCache();
+
+    const afterCrash = loadSession("k1");
+    expect(afterCrash.items).toHaveLength(2); // the complete record is parseable and loads
+
+    appendItems(afterCrash, [userMsg("after")]);
+    resetSessionCache();
+
+    const cold = loadSession("k1");
+    // Without the fix, "after" fuses onto the unterminated record (`}{`), making one
+    // unparseable line, so BOTH the recovered record and "after" are lost (len 1).
+    expect(cold.items).toHaveLength(3);
+    expect(JSON.stringify(cold.items[1])).toContain("recovered");
+    expect(JSON.stringify(cold.items[2])).toContain("after");
+  });
+});

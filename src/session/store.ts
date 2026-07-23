@@ -127,10 +127,32 @@ export function loadSession(sessionKey: SessionKey): Session {
   return session;
 }
 
+/** True if the file exists, is non-empty, and its last byte is not a newline. */
+function endsWithoutNewline(file: string): boolean {
+  let fd: number | undefined;
+  try {
+    const size = fs.statSync(file).size;
+    if (size === 0) return false;
+    fd = fs.openSync(file, "r");
+    const buf = Buffer.alloc(1);
+    fs.readSync(fd, buf, 0, 1, size - 1);
+    return buf[0] !== 0x0a; // '\n'
+  } catch {
+    return false; // missing/unreadable — appendFileSync will create it fresh
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+}
+
 /** Append items to the transcript (and in-memory list) and touch the index. */
 export function appendItems(session: Session, items: ResponseItem[]): void {
   if (!items.length) return;
-  const lines = items.map((item) => JSON.stringify({ ts: Date.now(), item }) + "\n").join("");
+  let lines = items.map((item) => JSON.stringify({ ts: Date.now(), item }) + "\n").join("");
+  // Heal a crash-torn tail: if a prior write left a partial last line with no
+  // trailing newline, start on a fresh line. Appending straight onto the orphaned
+  // bytes would fuse our first item into one unparseable line and lose it on the
+  // next load (loadItems then skips the isolated partial, as intended).
+  if (endsWithoutNewline(session.file)) lines = `\n${lines}`;
   fs.appendFileSync(session.file, lines);
   session.items.push(...items);
 
