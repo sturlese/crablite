@@ -262,20 +262,25 @@ async function maybeDailyCheckIn(channel: HeartbeatChannel): Promise<void> {
   if (ranToday()) return;
   markRanToday();
 
+  // Derive the chat type from the jid (mirrors the inbound path in whatsapp.ts).
+  // heartbeatChat may be a group id; hardcoding "direct" forked the check-in into
+  // a separate session from the group's reactive turns and mislabeled the chat in
+  // the prompt — the session key must match what handle.ts writes for that chat.
+  const chatType = chatId.endsWith("@g.us") ? "group" : "direct";
   const guidance = readHeartbeatGuidance();
   log.info("Running daily heartbeat check-in.");
   try {
     const res = await withTypingIndicator(typingFor(channel, chatId), () =>
       withLock(chatId, () =>
         runTurn({
-          sessionKey: sessionKeyFor(channel.id, "direct", chatId),
+          sessionKey: sessionKeyFor(channel.id, chatType, chatId),
           userText:
             `[Heartbeat] It's your scheduled check-in. Guidance:\n${guidance}\n\n` +
             `Decide if there is anything genuinely worth proactively telling the user right now ` +
             `(due follow-ups, time-sensitive facts from memory). If yes, send a brief, useful message. ` +
             `If there is nothing worth interrupting them for, reply exactly NO_REPLY.`,
           channel: channel.id,
-          chatType: "direct",
+          chatType,
           chatId,
           chatReply: async (t) => channel.send(chatId, t),
           chatSendFile: fileSender(channel, chatId),
