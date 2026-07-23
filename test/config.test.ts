@@ -63,4 +63,47 @@ describe("config", () => {
     resetConfigCache();
     expect(loadConfig().model).toBe("gpt-5.5");
   });
+
+  it("ignores wrong-typed config values instead of crashing (model)", () => {
+    dir = tmpState();
+    // Valid JSON, wrong type: a number or null model makes the provider-prefix
+    // strip `merged.model.includes(...)` throw and kills startup; any non-string
+    // must fall back to the default instead.
+    for (const bad of [{ model: 5.5 }, { model: null }, { model: ["x"] }]) {
+      fs.writeFileSync(paths.config(), JSON.stringify(bad));
+      resetConfigCache();
+      let c: ReturnType<typeof loadConfig>;
+      expect(() => {
+        c = loadConfig();
+      }).not.toThrow();
+      expect(c!.model).toBe("gpt-5.5");
+    }
+  });
+
+  it("keeps the allowlist closed when allowFrom is not a string[] (no fail-open)", () => {
+    dir = tmpState();
+    // A string allowFrom would satisfy `.length !== 0` (not fail-closed) and, if it
+    // contains "*", `includes("*")` → admit everyone. It must fall back to [].
+    for (const bad of [
+      { allowFrom: "34600*" },
+      { allowFrom: "*" },
+      { allowFrom: ["ok", 5] },
+      {
+        allowFrom: {},
+      },
+    ]) {
+      fs.writeFileSync(paths.config(), JSON.stringify(bad));
+      resetConfigCache();
+      const c = loadConfig();
+      expect(Array.isArray(c.allowFrom)).toBe(true);
+      expect(c.allowFrom).toEqual([]);
+    }
+  });
+
+  it("keeps a valid allowFrom array", () => {
+    dir = tmpState();
+    fs.writeFileSync(paths.config(), JSON.stringify({ allowFrom: ["34600", "34611"] }));
+    resetConfigCache();
+    expect(loadConfig().allowFrom).toEqual(["34600", "34611"]);
+  });
 });
