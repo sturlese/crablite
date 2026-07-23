@@ -55,8 +55,13 @@ const readTool: Tool = {
     const content = readTextCapped(file);
     if (args.start || args.end) {
       const lines = content.split("\n");
-      const start = Math.max(1, Number(args.start ?? 1));
-      const end = Math.min(lines.length, Number(args.end ?? lines.length));
+      // Guard model-supplied numbers with Number.isFinite: a non-numeric start/end
+      // yields NaN, and slice(NaN) would silently return an empty or wrong range
+      // (see the same guard on exec's timeoutSec). Fall back to the full range.
+      const rawStart = Number(args.start ?? 1);
+      const rawEnd = Number(args.end ?? lines.length);
+      const start = Number.isFinite(rawStart) ? Math.max(1, rawStart) : 1;
+      const end = Number.isFinite(rawEnd) ? Math.min(lines.length, rawEnd) : lines.length;
       return clip(lines.slice(start - 1, end).join("\n"));
     }
     return clip(content);

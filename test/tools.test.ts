@@ -48,6 +48,19 @@ describe("core tools", () => {
     expect(await tool("read").execute({ path: "nope.md" }, ctx)).toMatch(/not found/);
   });
 
+  it("read guards non-finite line ranges instead of returning an empty range", async () => {
+    const ctx = setup();
+    fs.writeFileSync(path.join(ctx.workspaceDir, "f.md"), "l1\nl2\nl3\nl4");
+    // A non-numeric end coerced to NaN and slice(_, NaN) returned "" — an empty
+    // file reported for a file with content. It must fall back to the last line.
+    expect(await tool("read").execute({ path: "f.md", end: "oops" }, ctx)).toBe("l1\nl2\nl3\nl4");
+    // A non-finite start (Number("Infinity") === Infinity) sliced past the end
+    // (also ""); it must fall back to line 1.
+    expect(await tool("read").execute({ path: "f.md", start: "Infinity", end: 3 }, ctx)).toBe(
+      "l1\nl2\nl3",
+    );
+  });
+
   it("read blocks paths outside the readable roots", async () => {
     const ctx = setup();
     await expect(tool("read").execute({ path: "/etc/hostname" }, ctx)).rejects.toThrow(
