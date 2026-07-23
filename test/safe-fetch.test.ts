@@ -103,4 +103,52 @@ describe("safeFetchText SSRF guard", () => {
     );
     await expect(safeFetchText("http://8.8.8.8/", { timeoutMs: 1000 })).rejects.toThrow(/private/);
   });
+
+  it("blocks IPv6 loopback / ULA / mapped-private in every spelling", () => {
+    for (const ip of [
+      "::1",
+      "0:0:0:0:0:0:0:1", // expanded loopback — the literal ::1 check missed this
+      "::", // unspecified
+      "fc00::1", // ULA
+      "fd12:3456::1", // ULA
+      "::ffff:7f00:1", // hex IPv4-mapped 127.0.0.1 (the form URLs normalize to)
+      "::ffff:127.0.0.1", // dotted IPv4-mapped 127.0.0.1
+      "::ffff:a9fe:a9fe", // hex-mapped 169.254.169.254 (cloud metadata)
+      "::ffff:a00:1", // hex-mapped 10.0.0.1
+      "::ffff:c0a8:1", // hex-mapped 192.168.0.1
+    ]) {
+      expect(isPrivateIp(ip)).toBe(true);
+    }
+    // Public IPv6 — and a public IPv4-mapped, hex or dotted — stay public.
+    expect(isPrivateIp("2606:4700:4700::1111")).toBe(false);
+    expect(isPrivateIp("::ffff:808:808")).toBe(false); // hex-mapped 8.8.8.8
+    expect(isPrivateIp("::ffff:8.8.8.8")).toBe(false);
+  });
+
+  it("fetches a public IPv6 literal URL (brackets stripped before the IP check)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        body: streamOf("hello v6"),
+      }),
+    );
+    // Without the bracket strip, "[2606:...]" failed net.isIP, hit dns.lookup and
+    // errored — a legitimate public IPv6 URL was unreachable.
+    expect(await safeFetchText("http://[2606:4700:4700::1111]/", { timeoutMs: 1000 })).toBe(
+      "hello v6",
+    );
+  });
+
+  it("blocks private IPv6 literal URLs (loopback and mapped metadata)", async () => {
+    for (const u of [
+      "http://[::1]/",
+      "http://[::ffff:127.0.0.1]/", // normalizes to [::ffff:7f00:1]
+      "http://[::ffff:169.254.169.254]/", // cloud metadata via IPv4-mapped
+    ]) {
+      await expect(safeFetchText(u, { timeoutMs: 1000 })).rejects.toThrow(/private/);
+    }
+  });
 });

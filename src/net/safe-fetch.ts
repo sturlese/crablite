@@ -52,15 +52,21 @@ export async function safeFetchText(
 }
 
 async function assertPublicHost(hostname: string): Promise<void> {
-  if (net.isIP(hostname)) {
-    if (isPrivateIp(hostname)) throw new Error(`Blocked private address: ${hostname}`);
+  // URL hostnames for IPv6 literals keep their brackets (new URL("http://[::1]/")
+  // .hostname === "[::1]"); net.isIP rejects the bracketed form, so strip them
+  // before the IP checks — otherwise every IPv6 literal fell through to dns.lookup
+  // and failed, and private v6 literals were only blocked by that accidental failure.
+  const host =
+    hostname.startsWith("[") && hostname.endsWith("]") ? hostname.slice(1, -1) : hostname;
+  if (net.isIP(host)) {
+    if (isPrivateIp(host)) throw new Error(`Blocked private address: ${host}`);
     return;
   }
-  const addrs = await dns.lookup(hostname, { all: true });
-  if (addrs.length === 0) throw new Error(`Cannot resolve host: ${hostname}`);
+  const addrs = await dns.lookup(host, { all: true });
+  if (addrs.length === 0) throw new Error(`Cannot resolve host: ${host}`);
   for (const a of addrs) {
     if (isPrivateIp(a.address))
-      throw new Error(`Blocked private address for ${hostname}: ${a.address}`);
+      throw new Error(`Blocked private address for ${host}: ${a.address}`);
   }
 }
 
@@ -78,14 +84,58 @@ export function isPrivateIp(ip: string): boolean {
     if (a >= 224) return true; // multicast / reserved
     return false;
   }
-  const ipl = ip.toLowerCase();
-  if (ipl === "::1" || ipl === "::") return true;
-  // fe80::/10 link-local spans fe80–febf (2nd hextet's high nibble 8–b), not
-  // just the fe80 prefix; startsWith("fe80") let fe90–febf through as "public".
-  if (/^fe[89ab]/.test(ipl)) return true; // fe80::/10 link-local
-  if (ipl.startsWith("fc") || ipl.startsWith("fd")) return true; // fc00::/7 ULA
-  if (ipl.startsWith("::ffff:")) return isPrivateIp(ipl.slice(7)); // IPv4-mapped
+  if (v !== 6) return false;
+  // Normalize to eight numeric groups and range-check, rather than matching string
+  // prefixes: an IPv6 address has many spellings (compressed, expanded, hex- or
+  // dotted-mapped) and prefix heuristics missed several (e.g. ::ffff:7f00:1 is
+  // 127.0.0.1, and 0:0:0:0:0:0:0:1 is loopback).
+  const g = ipv6Groups(ip.toLowerCase());
+  if (!g) return true; // valid per net.isIP but unparseable here — fail closed
+  if (g.every((n) => n === 0)) return true; // :: unspecified
+  if (g.slice(0, 7).every((n) => n === 0) && g[7] === 1) return true; // ::1 loopback
+  if (g[0] >= 0xfe80 && g[0] <= 0xfebf) return true; // fe80::/10 link-local
+  if (g[0] >= 0xfc00 && g[0] <= 0xfdff) return true; // fc00::/7 ULA
+  // IPv4-mapped ::ffff:0:0/96 — validate the embedded IPv4 in any spelling.
+  if (g.slice(0, 5).every((n) => n === 0) && g[5] === 0xffff) {
+    return isPrivateIp(`${g[6] >> 8}.${g[6] & 0xff}.${g[7] >> 8}.${g[7] & 0xff}`);
+  }
   return false;
+}
+
+type V6Groups = [number, number, number, number, number, number, number, number];
+
+/**
+ * Expand a valid IPv6 string to its eight 16-bit groups, resolving `::` and any
+ * trailing embedded IPv4 (`::ffff:1.2.3.4`). Returns null if it can't be parsed —
+ * callers treat null as private (fail closed). `net.isIP` has already confirmed
+ * the input is a valid v6 before this runs.
+ */
+function ipv6Groups(ip: string): V6Groups | null {
+  let s = ip;
+  // Fold a dotted IPv4 tail into two hex groups so the rest is pure hextets.
+  const dotted = s.match(/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/)?.[1];
+  if (dotted) {
+    const o = dotted.split(".").map(Number) as [number, number, number, number];
+    if (o.some((n) => n > 255)) return null;
+    s =
+      s.slice(0, -dotted.length) +
+      `${((o[0] << 8) | o[1]).toString(16)}:${((o[2] << 8) | o[3]).toString(16)}`;
+  }
+  const halves = s.split("::");
+  if (halves.length > 2) return null; // at most one "::"
+  const head = halves[0] ? halves[0].split(":") : [];
+  const tail = halves.length === 2 ? (halves[1] ? halves[1].split(":") : []) : null;
+  let parts: string[];
+  if (tail === null) {
+    parts = head; // no "::" — must already be all eight groups
+  } else {
+    const fill = 8 - head.length - tail.length;
+    if (fill < 1) return null; // "::" must stand in for at least one group
+    parts = [...head, ...Array(fill).fill("0"), ...tail];
+  }
+  if (parts.length !== 8) return null;
+  const nums = parts.map((p) => (/^[0-9a-f]{1,4}$/.test(p) ? Number.parseInt(p, 16) : -1));
+  return nums.some((n) => n < 0) ? null : (nums as V6Groups);
 }
 
 async function readCapped(res: Response, maxBytes: number): Promise<string> {
