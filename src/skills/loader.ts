@@ -16,6 +16,7 @@ export type Skill = {
   location: string; // absolute path to SKILL.md
   requiresBins: string[];
   eligible: boolean;
+  learned: boolean; // self-written by the agent (metadata.crablite/openclaw.learned: true)
 };
 
 export function loadSkills(): Skill[] {
@@ -66,7 +67,8 @@ function parseSkill(file: string): Skill | null {
   // whole point of the separate key. Folding them together would make anyBins
   // behave like bins. Faithful to OpenClaw's resolveMissingAnyBins (some()).
   const eligible = bins.every(hasBinary) && (anyBins.length === 0 || anyBins.some(hasBinary));
-  return { name, description, location: file, requiresBins, eligible };
+  const learned = isLearned(fm);
+  return { name, description, location: file, requiresBins, eligible, learned };
 }
 
 // --- minimal frontmatter parsing --------------------------------------------
@@ -88,6 +90,19 @@ function matchScalar(fm: string, key: string): string | undefined {
       .replace(/^["']|["']$/g, "")
       .trim() || undefined
   );
+}
+
+/**
+ * True iff the frontmatter's metadata block sets `learned: true` — the provenance
+ * marker a self-taught skill carries (see skills/skill-creator/SKILL.md). Regex-simple
+ * like the rest of this parser: it doesn't care whether the key sits under
+ * `metadata.crablite` or `metadata.openclaw`, only that a `learned: true` line exists
+ * somewhere in the frontmatter (leading indentation allowed, unlike matchScalar).
+ * Absent or any other value → false.
+ */
+function isLearned(fm: string): boolean {
+  const m = fm.match(/^[ \t]*learned\s*:\s*(.+?)\s*$/m);
+  return m !== null && m[1]!.replace(/^["']|["']$/g, "") === "true";
 }
 
 /**
@@ -162,4 +177,26 @@ export function formatSkillCatalog(skills: Skill[]): string {
     )
     .join("\n");
   return `<available_skills>\n${items}\n</available_skills>`;
+}
+
+// --- doctor formatting -------------------------------------------------------
+
+/**
+ * Render one skill's `crablite doctor` listing line, e.g. `✅ name (learned) (needs: a,b)`.
+ * Caller (`cmdDoctor`) owns the leading indent/newline; this is just the line body.
+ */
+export function formatSkillLine(s: Skill): string {
+  const learnedTag = s.learned ? " (learned)" : "";
+  const needsTag = s.requiresBins.length ? ` (needs: ${s.requiresBins.join(",")})` : "";
+  return `${s.eligible ? "✅" : "⏸ "} ${s.name}${learnedTag}${needsTag}`;
+}
+
+/**
+ * Render the `crablite doctor` skills summary, e.g. `3 eligible / 4 found (1 learned)`. The
+ * `(K learned)` suffix appears only when at least one skill is learned.
+ */
+export function formatSkillsSummary(skills: Skill[]): string {
+  const learnedCount = skills.filter((s) => s.learned).length;
+  const learnedSuffix = learnedCount > 0 ? ` (${learnedCount} learned)` : "";
+  return `${skills.filter((s) => s.eligible).length} eligible / ${skills.length} found${learnedSuffix}`;
 }

@@ -16,12 +16,17 @@ model reads the body on demand with the `read` tool.
 | `loadSkills()` | Scan both roots, parse, dedupe by name, sort. Returns `Skill[]`. |
 | `formatSkillCatalog(skills)` | Render eligible skills as `<available_skills>` XML for the prompt. |
 | `hasBinary(bin)` | Cached `PATH` lookup (also used by `crablite doctor`). |
+| `formatSkillLine(s)` | One skill's `crablite doctor` line, e.g. `✅ name (learned) (needs: a,b)`. |
+| `formatSkillsSummary(skills)` | The `crablite doctor` summary line, e.g. `3 eligible / 4 found (1 learned)` — the `(K learned)` suffix only when `K>0`. |
 
 ## Use these
 
 - **`loadSkills()` + `formatSkillCatalog()`** together — `agent/runner.ts` shows the pattern.
 - **`hasBinary`** for any "is this CLI installed?" check; it caches per process.
 - **`bundledSkillsDir()` / `paths.skillsDir()`** (from `../paths.js`) for the two scan roots.
+- **`formatSkillLine` / `formatSkillsSummary`** for any `doctor`-style skill listing — `cmdDoctor`
+  (`src/index.ts`) is the only caller today; reuse them instead of re-formatting the ✅/⏸/`(learned)`
+  shape by hand.
 
 ## Avoid / anti-patterns
 
@@ -37,11 +42,16 @@ model reads the body on demand with the `read` tool.
   "never guess or fabricate skill paths".
 - Do **not** invert precedence. Workspace skills (`~/.crablite/workspace/skills/`) override
   bundled ones with the same name; that is how a user customizes a shipped skill.
+- Do **not** assume `isLearned()` is scoped to `metadata.crablite`/`metadata.openclaw`. It matches
+  any line-anchored `learned: true` in the frontmatter (indentation allowed) — a deliberate
+  superset that errs toward false-positive provenance. It IS anchored to the start of the line, so a
+  `description:` sentence merely containing the substring `learned: true` cannot trigger it (see the
+  regression test in `test/loader.test.ts`).
 
 ## Data & contracts
 
 ```ts
-Skill = { name; description; location /* absolute path to SKILL.md */; requiresBins: string[]; eligible }
+Skill = { name; description; location /* absolute path to SKILL.md */; requiresBins: string[]; eligible; learned /* self-written by the agent — metadata.crablite/openclaw.learned: true */ }
 ```
 
 `SKILL.md` frontmatter (YAML between `---` fences):
@@ -52,6 +62,7 @@ name: weather
 description: One sentence. This is the ONLY text the model sees up front — make it a trigger.
 metadata:
   crablite:          # metadata.openclaw is also honored, so OpenClaw skills drop in unchanged
+    learned: true      # optional — self-written provenance; set by skill-creator, absent on shipped skills
     requires:
       bins: ["curl"]     # all required
       anyBins: ["a","b"] # at least one required
@@ -65,7 +76,15 @@ Scan roots, low → high precedence: `<packageRoot>/skills/`, then
 
 `test/loader.test.ts` — frontmatter parsing (both array forms), the AND/OR distinction between
 `bins` and `anyBins`, precedence between roots, catalog rendering, skipping folders without
-name/description.
+name/description; the `learned` flag under `metadata.crablite` and `metadata.openclaw`, absent/false,
+and the line-anchored regex rejecting a mid-line `learned: true` substring; per-turn liveness (a
+skill written mid-conversation is picked up by the next `loadSkills()` call, no restart); and that
+the bundled `skill-creator` itself parses eligible/binary-free/not-learned.
+
+`formatSkillLine`/`formatSkillsSummary` are pinned byte-exact by the `doctor formatting (pure)`
+describe block in the same file (tag order, the `(K learned)` suffix only when `K>0`, and the ⏸
+double-space); `cmdDoctor` (`src/index.ts`) stays an untested thin adapter (see `test/index.md`
+"Avoid").
 
 ## Common tasks
 
@@ -75,10 +94,14 @@ name/description.
 | Add a frontmatter key | `parseSkill` + `extractBins`-style helper; keep it regex-simple |
 | Change the prompt catalog shape | `formatSkillCatalog` + the "## Skills" section of `agent/system-prompt.ts` |
 | Debug why a skill is hidden | `crablite doctor` lists found vs eligible skills and missing bins |
+| Change the `doctor` skills listing format | `formatSkillLine` / `formatSkillsSummary` here (pure; byte-exact tests in `test/loader.test.ts`) |
 
 ## Notes
 
 - The binary cache is process-lifetime. A long-running WhatsApp process will not notice a CLI
   installed after startup — restart to pick it up.
+- `loadSkills()` itself is **not** cached — it re-`readdirSync`s both roots on every call. That is
+  what lets a skill the agent just wrote (`skill-creator`) show up on the very next turn, no
+  restart, unlike the binary cache above.
 - Skills act through the `exec` tool; there is no skill runtime. That is the whole point: a skill is
   documentation the model follows.

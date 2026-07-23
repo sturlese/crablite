@@ -29,8 +29,9 @@ files you can read in an afternoon — not a 14,000‑file monorepo.
   dated notes in `memory/`. No database, no hidden state. Everything is Markdown in one folder.
 - **Self‑learning ("dreaming").** Notes you keep coming back to are automatically promoted into
   always‑loaded `MEMORY.md` each night — with provenance and a human‑readable `DREAMS.md` diary.
-- **Skills are folders.** Drop a `SKILL.md` into `skills/` and the agent can use it. Only the
-  name + description are always in context; the body is read on demand (progressive disclosure).
+- **Skills are folders — and it can write its own.** Drop a `SKILL.md` into `skills/` and the agent
+  can use it; only the name + description are always in context, the body is read on demand
+  (progressive disclosure). Teach it a workflow and, with your OK, it saves one for next time.
 - **Autonomous subagents.** The agent can call `spawn_subagent` itself to delegate a bounded task to
   a fresh, isolated child agent.
 - **Proactive, not just reactive.** It schedules one‑shot reminders (`schedule_reminder`) **and
@@ -188,7 +189,18 @@ Run `curl -s 'wttr.in/<place>?format=3'` and summarize the result in one sentenc
   with `exec`). OpenClaw's `metadata.openclaw` block is also honored, so its skills drop in unchanged.
 
 Bundled skills: **gog** (Gmail + Sheets), **weather**, **web-search**, **pdf** (needs `pdftotext`,
-baked into the Docker image). Run `crablite doctor` to see which are eligible.
+baked into the Docker image), **skill-creator** (propose & save new skills — see below). Run
+`crablite doctor` to see which are eligible.
+
+**Skills learn themselves, too.** Teach it a repeatable procedure and, once you correct the same
+workflow a second time — or just ask it to remember how you do something — it can offer to save it
+as a skill: one short chat message with the proposed name, its trigger, and what it'll do, ending in
+a single question. It writes `skills/<name>/SKILL.md` in your workspace only after you say yes —
+unlike dreaming (automatic, nightly), a skill is only written after explicit confirmation, by policy.
+Skills it writes carry the `metadata.crablite.learned: true` provenance marker, are live from
+the very next turn (no restart), and `crablite doctor` tags them `(learned)` in its listing. The
+`skill-creator` skill (bundled) carries the full policy — ask to see, tweak, or forget any learned
+skill anytime.
 
 ---
 
@@ -313,7 +325,8 @@ Conventions, checks to run before a PR, and the commit format: [`CONTRIBUTING.md
 - **File-based memory** you can read and edit: soul, identity, user profile, dated working notes, and a long-term `MEMORY.md` — no hidden state.
 - **Self-learning ("dreaming")**: notes you keep coming back to are promoted into long-term memory each night, with provenance and a `DREAMS.md` diary.
 - Reading, writing, searching and compacting memory straight from the conversation.
-- **Folder-based skills** (`SKILL.md`) with progressive disclosure and binary gating.
+- **Folder-based skills** (`SKILL.md`) with progressive disclosure and binary gating — the agent can
+  also write its own, with your confirmation.
 - **Autonomous subagents** for delegated, well-scoped work.
 - **Proactivity**: one-shot reminders and recurring routines (daily/weekly/interval) the agent
   schedules, lists and cancels in conversation, delivered on their own by a heartbeat; plus an

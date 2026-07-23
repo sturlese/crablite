@@ -76,3 +76,7 @@ overwritten), injection order and per-file budgeting via `loadProjectContext()`.
   in `IDENTITY.md`, set `CRABLITE_AGENT_NAME` to match or it will stop responding in groups.
 - These files are the entire "hidden state" of the agent — which is the point: everything is
   readable and diffable Markdown.
+- `AGENTS.md`'s `## Learning skills` policy is not mirrored in `system-prompt.ts`'s hardcoded
+  `## Policy` (that block still only states memory-search-first / confirm-before-sending /
+  `NO_REPLY` / don't-hand-edit-`MEMORY.md`) — the propose-confirm-write rules live only in this
+  editable template plus the bundled `skills/skill-creator/SKILL.md`.

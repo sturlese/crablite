@@ -19,7 +19,7 @@ import { startDreamingScheduler } from "./dreaming-cron.js";
 import { startHeartbeat } from "./heartbeat.js";
 import { drainLocks } from "./util/lock.js";
 import { runDreaming } from "./memory/dreaming.js";
-import { loadSkills } from "./skills/loader.js";
+import { loadSkills, formatSkillLine, formatSkillsSummary } from "./skills/loader.js";
 import { hasBinary } from "./skills/loader.js";
 import { pendingReminders } from "./agent/reminders.js";
 import { allRoutines } from "./agent/routines.js";
@@ -214,13 +214,9 @@ function cmdDoctor(): void {
   process.stdout.write(
     `gog (Google): ${hasBinary("gog") ? "✅ installed" : "❌ not found (Gmail/Sheets skill will be hidden)"}\n`,
   );
-  process.stdout.write(
-    `Skills:      ${skills.filter((s) => s.eligible).length} eligible / ${skills.length} found\n`,
-  );
+  process.stdout.write(`Skills:      ${formatSkillsSummary(skills)}\n`);
   for (const s of skills) {
-    process.stdout.write(
-      `   ${s.eligible ? "✅" : "⏸ "} ${s.name}${s.requiresBins.length ? ` (needs: ${s.requiresBins.join(",")})` : ""}\n`,
-    );
+    process.stdout.write(`   ${formatSkillLine(s)}\n`);
   }
 }
 
