@@ -15,6 +15,7 @@ Loaded by `src/skills/loader.ts` at **lower** precedence than the user's
 | --- | --- | --- |
 | `gog/` | `gog` | Google Workspace: Gmail (search, read, summarize, **draft → confirm → send**) and Sheets (get/update/append/clear), plus Calendar/Drive/Docs. |
 | `pdf/` | `pdftotext` | Read/summarize/answer questions about a PDF (typically one saved to `inbox/`). |
+| `skill-creator/` | — | Turn a taught workflow into a workspace `SKILL.md` — propose → explicit confirm → write; tags it `metadata.crablite.learned: true`. Forgetting = break the frontmatter fence via `write`, never `exec rm`. |
 | `weather/` | `curl` | Current weather / short forecast. |
 | `web-search/` | — | Search and read pages using the built-in `web_fetch` tool. |
 
@@ -54,6 +55,7 @@ name: <folder-name>
 description: <one sentence trigger — the only always-in-context text>
 metadata:
   crablite:            # metadata.openclaw is also honored (OpenClaw skills drop in unchanged)
+    learned: true          # provenance marker skill-creator writes on anything self-taught; omit on hand-authored skills
     requires:
       bins: ["gog"]        # ALL must be present
       anyBins: ["a","b"]   # at LEAST ONE must be present
@@ -66,8 +68,10 @@ directory so the `read` tool can open it.
 
 ## Tests
 
-Parsing, gating and precedence are covered by `test/loader.test.ts`. The skill *bodies* are prose
-and are not tested — validate them by using them (`pnpm crablite chat`).
+Parsing, gating and precedence — including the `learned` provenance flag — are covered by
+`test/loader.test.ts`, which also confirms `skill-creator` itself parses eligible, binary-free, and
+not learned (it's the bundled tool, not a self-taught skill). The skill *bodies* are prose and are
+not tested — validate them by using them (`pnpm crablite chat`).
 
 ## Common tasks
 
@@ -75,11 +79,14 @@ and are not tested — validate them by using them (`pnpm crablite chat`).
 | --- | --- |
 | Add a bundled skill | New folder + `SKILL.md` here; verify with `crablite doctor` |
 | Let a user customize a shipped skill | Copy it to `~/.crablite/workspace/skills/<name>/` (overrides by name) |
+| A user teaches a new skill | The bundled `skill-creator/` skill proposes, confirms, then writes to `~/.crablite/workspace/skills/<name>/` |
 | A skill is hidden | Its `requires.bins` binary is not on `PATH` — check `crablite doctor` |
 | Change how skills reach the prompt | `src/skills/loader.ts` + the "## Skills" section of `src/agent/system-prompt.ts` |
 
 ## Notes
 
+- `skill-creator/SKILL.md` never carries `learned: true` itself — it's the bundled tool that writes
+  that marker onto *other* skills, not a self-taught one.
 - `gog/SKILL.md` documents a one-time OAuth setup the *user* performs; the agent must never be
   asked to run it silently.
 - `pdf` is gated on `pdftotext` (poppler), baked into the Docker image. Locally, install poppler or

@@ -51,7 +51,7 @@ A map of the code and how a message flows through it.
 | `memory/recall.ts` | `recall.json` store: recall counts, scores, distinct queries/days. |
 | `memory/dreaming.ts` | Rank → gate → rehydrate → promote to `MEMORY.md` → `DREAMS.md`; budget compaction. |
 | `memory/flush.ts` | Pre‑prune memory flush: durable facts → today's daily note. |
-| `skills/loader.ts` | Scan folders → parse `SKILL.md` frontmatter → gate by `requires.bins` → catalog. |
+| `skills/loader.ts` | Scan folders → parse `SKILL.md` frontmatter → gate by `requires.bins` → catalog; tracks self-taught (`learned`) provenance and formats the `crablite doctor` skills listing. |
 | `session/store.ts` | `sessions.json` index + append‑only JSONL transcripts (Responses items); in‑process session cache (one shared mutable `Session` per key). |
 | `channels/types.ts` | `Channel` + `InboundMessage` interfaces. |
 | `channels/whatsapp.ts` | Baileys adapter: QR login, `messages.upsert`, send/sendFile/react/typing/read‑receipts, reconnect; `pauseIntake()` for shutdown (drop inbound, socket stays open). |
