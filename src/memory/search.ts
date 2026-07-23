@@ -134,7 +134,11 @@ export const memorySearchTool: Tool = {
   async execute(args) {
     const query = String(args.query ?? "").trim();
     if (!query) return "ERROR: empty query.";
-    const max = Math.max(1, Math.min(10, Number(args.maxResults ?? 5)));
+    // Guard the model-supplied number with Number.isFinite: a non-numeric
+    // maxResults yields NaN, and slice(0, NaN) returns [] — the tool would then
+    // report "No memory matched" for a query that DID match. Fall back to 5.
+    const rawMax = Number(args.maxResults ?? 5);
+    const max = Number.isFinite(rawMax) ? Math.max(1, Math.min(10, rawMax)) : 5;
     const qTokens = tokenize(query);
 
     const ranked = collectBlocks()
@@ -197,8 +201,13 @@ export const memoryGetTool: Tool = {
     }
     if (!fs.existsSync(file)) return `ERROR: not found: ${rel}`;
     const lines = fs.readFileSync(file, "utf8").split("\n");
-    const start = Math.max(1, Number(args.start ?? 1));
-    const end = Math.min(lines.length, Number(args.end ?? Math.min(lines.length, start + 200)));
+    // Same Number.isFinite guard as memory_search: a non-numeric start/end yields
+    // NaN and slice(NaN) returns "" (an empty excerpt for a file with content).
+    const rawStart = Number(args.start ?? 1);
+    const start = Number.isFinite(rawStart) ? Math.max(1, rawStart) : 1;
+    const defaultEnd = Math.min(lines.length, start + 200);
+    const rawEnd = Number(args.end ?? defaultEnd);
+    const end = Number.isFinite(rawEnd) ? Math.min(lines.length, rawEnd) : defaultEnd;
     return lines.slice(start - 1, end).join("\n");
   },
 };
