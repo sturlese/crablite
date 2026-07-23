@@ -67,20 +67,50 @@ function parseBoolEnv(value: string): boolean {
 
 let cached: Config | null = null;
 
+function typeName(v: unknown): string {
+  return v === null ? "null" : Array.isArray(v) ? "array" : typeof v;
+}
+
+// Keep only the config keys whose value matches the expected type. Parsing JSON
+// is not enough: a valid-but-wrong-typed config ({"model": 5.5}, {"allowFrom":
+// "*"}) would otherwise crash startup at the model-prefix strip, or — worse —
+// turn the closed string[] allowlist into a bare string that the admission gate
+// reads as fail-open. A rejected key falls back to its default, with a warning.
+function sanitizeConfig(raw: unknown): Partial<Config> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const src = raw as Record<string, unknown>;
+  const out: Partial<Config> = {};
+  for (const key of Object.keys(DEFAULTS) as (keyof Config)[]) {
+    if (!(key in src)) continue;
+    const val = src[key];
+    const ok =
+      key === "allowFrom"
+        ? Array.isArray(val) && val.every((x) => typeof x === "string")
+        : typeof val === typeof DEFAULTS[key];
+    if (ok) {
+      (out as Record<string, unknown>)[key] = val;
+    } else {
+      const want = key === "allowFrom" ? "string[]" : typeof DEFAULTS[key];
+      log.warn(`Ignoring config key "${key}": expected ${want}, got ${typeName(val)}.`);
+    }
+  }
+  return out;
+}
+
 export function loadConfig(): Config {
   if (cached) return cached;
 
-  let fromFile: Partial<Config> = {};
+  let fromFile: unknown = {};
   const file = paths.config();
   if (fs.existsSync(file)) {
     try {
-      fromFile = JSON.parse(fs.readFileSync(file, "utf8")) as Partial<Config>;
+      fromFile = JSON.parse(fs.readFileSync(file, "utf8"));
     } catch (err) {
       log.warn(`Could not parse ${file}; using defaults.`, String(err));
     }
   }
 
-  const merged: Config = { ...DEFAULTS, ...fromFile };
+  const merged: Config = { ...DEFAULTS, ...sanitizeConfig(fromFile) };
 
   // Environment overrides (highest precedence).
   if (process.env.CRABLITE_MODEL) merged.model = process.env.CRABLITE_MODEL.trim();
