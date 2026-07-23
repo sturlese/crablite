@@ -104,13 +104,18 @@ function compactMemory(memoryPath: string): void {
   const content = fs.readFileSync(memoryPath, "utf8");
   if (content.length <= MEMORY_BUDGET_CHARS) return;
 
-  const idx = content.indexOf(PROMOTION_HEADING);
+  // Anchor to line start: the seeded MEMORY.md template mentions the heading text
+  // inside an HTML comment, and user notes may quote it too. An unanchored match
+  // would split mid-comment and evict the user content that follows as if it were a
+  // promotion section. Real promotion headings are always written at column 0 (see
+  // the appendFileSync below), so `^…` matches only them.
+  const idx = content.search(new RegExp(`^${PROMOTION_HEADING}`, "m"));
   if (idx === -1) return; // nothing but user content — leave it alone
   const preamble = content.slice(0, idx);
   const rest = content.slice(idx);
 
   // Split into promotion sections (each starts with the heading).
-  const sections = rest.split(new RegExp(`(?=${PROMOTION_HEADING})`)).filter((s) => s.trim());
+  const sections = rest.split(new RegExp(`(?=^${PROMOTION_HEADING})`, "m")).filter((s) => s.trim());
 
   while (preamble.length + sections.join("").length > MEMORY_BUDGET_CHARS && sections.length > 0) {
     sections.shift(); // drop the oldest (file order = chronological)
