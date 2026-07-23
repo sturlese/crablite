@@ -181,11 +181,10 @@ export class WhatsAppChannel implements Channel {
 
   /** Download inbound images, voice notes and documents (the kinds we use). */
   private async extractMedia(m: any): Promise<InboundMedia[] | undefined> {
-    let message = m.message ?? {};
-    // Documents sent WITH a caption arrive wrapped one level deeper.
-    if (message.documentWithCaptionMessage?.message?.documentMessage) {
-      message = message.documentWithCaptionMessage.message;
-    }
+    // Peel disappearing/view-once/caption wrappers so the media node is visible.
+    // downloadMediaMessage(m) still gets the raw message — Baileys normalizes it
+    // internally for the actual download.
+    const message = peelWrappers(m.message);
     const kind = message.imageMessage
       ? "image"
       : message.audioMessage
@@ -227,14 +226,39 @@ export class WhatsAppChannel implements Channel {
   }
 }
 
+/**
+ * Disappearing (ephemeral), view-once and edited messages arrive wrapped in a
+ * container whose real content sits one level deeper under `.message` — Baileys
+ * delivers them verbatim and does not unwrap them for us. Peel those wrappers
+ * (nested combinations included) so text, media and quote extraction see the
+ * actual message instead of an empty shell. Without this, every message from a
+ * chat with disappearing messages enabled is read as blank and dropped. Mirrors
+ * Baileys' own normalizeMessageContent.
+ */
+function peelWrappers(message: any): any {
+  let m = message ?? {};
+  for (let i = 0; i < 5; i++) {
+    const inner =
+      m.ephemeralMessage?.message ??
+      m.viewOnceMessage?.message ??
+      m.viewOnceMessageV2?.message ??
+      m.viewOnceMessageV2Extension?.message ??
+      m.documentWithCaptionMessage?.message ??
+      m.editedMessage?.message;
+    if (!inner) break;
+    m = inner;
+  }
+  return m;
+}
+
 export function extractText(message: any): string {
+  const m = peelWrappers(message);
   return (
-    message.conversation ??
-    message.extendedTextMessage?.text ??
-    message.imageMessage?.caption ??
-    message.videoMessage?.caption ??
-    message.documentMessage?.caption ??
-    message.documentWithCaptionMessage?.message?.documentMessage?.caption ??
+    m.conversation ??
+    m.extendedTextMessage?.text ??
+    m.imageMessage?.caption ??
+    m.videoMessage?.caption ??
+    m.documentMessage?.caption ??
     ""
   ).trim();
 }
@@ -248,7 +272,7 @@ const QUOTE_MAX_CHARS = 400;
  * imageMessage, …), so scan the message's nodes for it.
  */
 export function extractQuoted(message: any): string | undefined {
-  for (const node of Object.values(message ?? {})) {
+  for (const node of Object.values(peelWrappers(message))) {
     const quoted = (node as any)?.contextInfo?.quotedMessage;
     if (quoted) return renderQuoted(quoted);
   }
@@ -256,7 +280,7 @@ export function extractQuoted(message: any): string | undefined {
 }
 
 function renderQuoted(quoted: any): string {
-  const inner = quoted.documentWithCaptionMessage?.message ?? quoted;
+  const inner = peelWrappers(quoted);
   const text = extractText(inner);
   if (text) return text.length > QUOTE_MAX_CHARS ? `${text.slice(0, QUOTE_MAX_CHARS)} …` : text;
   if (inner.audioMessage) return "[voice note]";

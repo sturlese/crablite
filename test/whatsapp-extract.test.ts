@@ -58,6 +58,21 @@ describe("extractQuoted", () => {
     expect(extractQuoted({ conversation: "hi" })).toBeUndefined();
     expect(extractQuoted(undefined)).toBeUndefined();
   });
+
+  it("peels an ephemeral wrapper to find the quoted message", () => {
+    // A reply sent in a chat with disappearing messages arrives wrapped.
+    const message = {
+      ephemeralMessage: {
+        message: {
+          extendedTextMessage: {
+            text: "what about this?",
+            contextInfo: { quotedMessage: { conversation: "move the launch to Friday" } },
+          },
+        },
+      },
+    };
+    expect(extractQuoted(message)).toBe("move the launch to Friday");
+  });
 });
 
 describe("extractText", () => {
@@ -67,5 +82,31 @@ describe("extractText", () => {
         documentWithCaptionMessage: { message: { documentMessage: { caption: "read this" } } },
       }),
     ).toBe("read this");
+  });
+
+  it("reads text from a disappearing (ephemeral) message", () => {
+    expect(extractText({ ephemeralMessage: { message: { conversation: "hola equipo" } } })).toBe(
+      "hola equipo",
+    );
+  });
+
+  it("reads the caption from a view-once message", () => {
+    expect(
+      extractText({ viewOnceMessageV2: { message: { imageMessage: { caption: "secret pic" } } } }),
+    ).toBe("secret pic");
+  });
+
+  it("peels nested wrappers (ephemeral around a captioned document)", () => {
+    expect(
+      extractText({
+        ephemeralMessage: {
+          message: {
+            documentWithCaptionMessage: {
+              message: { documentMessage: { caption: "the invoice" } },
+            },
+          },
+        },
+      }),
+    ).toBe("the invoice");
   });
 });
