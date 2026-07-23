@@ -1,7 +1,9 @@
+import fs from "node:fs";
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { tmpState, cleanup } from "./helpers.js";
-import { ensureStateDirs } from "../src/paths.js";
+import { ensureStateDirs, paths } from "../src/paths.js";
 import { addRoutine, allRoutines } from "../src/agent/routines.js";
+import { resetConfigCache } from "../src/config.js";
 
 // Routine turns resolve fast here; behavior branches on the routine text so a
 // single mock covers both the replying and the NO_REPLY (silent) cases.
@@ -19,6 +21,7 @@ import { startHeartbeat } from "../src/heartbeat.js";
 let dir: string;
 afterEach(() => {
   cleanup(dir);
+  resetConfigCache(); // the check-in test writes config.json; don't leak it forward
   vi.useRealTimers();
   vi.clearAllMocks();
 });
@@ -93,5 +96,32 @@ describe("heartbeat routines", () => {
     await vi.advanceTimersByTimeAsync(10_000 + 6 * 60_000);
     expect(runTurn).toHaveBeenCalledTimes(1);
     expect(sends).toEqual([]); // silence respected — no fallback send
+  });
+});
+
+describe("heartbeat daily check-in", () => {
+  it("uses the group session/chatType for a group primary chat (no fork)", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 9, 0, 0)); // 09:00 local
+    dir = tmpState();
+    ensureStateDirs();
+    // A group jid as the primary chat; the check-in must run under the same
+    // session key handle.ts writes for that group, not a forked "direct" one.
+    fs.writeFileSync(
+      paths.config(),
+      JSON.stringify({ heartbeatChat: "team@g.us", heartbeatHour: 9 }),
+    );
+    resetConfigCache();
+
+    startHeartbeat({ id: "whatsapp", send: async () => {} });
+
+    await vi.advanceTimersByTimeAsync(10_000); // startup tick at 09:00:10 → check-in runs
+
+    expect(runTurn).toHaveBeenCalledTimes(1);
+    const call = vi.mocked(runTurn).mock.calls[0]![0] as any;
+    expect(call.userText).toContain("[Heartbeat]");
+    expect(call.chatType).toBe("group"); // was hardcoded "direct"
+    expect(call.sessionKey).toContain(":group:");
+    expect(call.sessionKey).toContain("team@g.us");
   });
 });
