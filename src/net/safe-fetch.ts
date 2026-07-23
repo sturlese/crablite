@@ -24,26 +24,29 @@ export async function safeFetchText(
     await assertPublicHost(u.hostname);
 
     const controller = new AbortController();
+    // One deadline for the whole hop, including the body read. Clearing the timer
+    // only after readCapped (not the moment fetch resolves) is what stops a server
+    // that sends headers then stalls the body from hanging forever — an unbounded
+    // body read would wedge the per-chat lock and defeat the shutdown drain.
     const timer = setTimeout(() => controller.abort(), timeoutMs);
-    let res: Response;
     try {
-      res = await fetch(url, {
+      const res = await fetch(url, {
         redirect: "manual",
         signal: controller.signal,
         headers: { "User-Agent": "crablite" },
       });
+
+      if (res.status >= 300 && res.status < 400) {
+        const loc = res.headers.get("location");
+        if (loc) {
+          url = new URL(loc, url).toString(); // re-validated at the top of the loop
+          continue;
+        }
+      }
+      return await readCapped(res, maxBytes);
     } finally {
       clearTimeout(timer);
     }
-
-    if (res.status >= 300 && res.status < 400) {
-      const loc = res.headers.get("location");
-      if (loc) {
-        url = new URL(loc, url).toString(); // re-validated at the top of the loop
-        continue;
-      }
-    }
-    return await readCapped(res, maxBytes);
   }
   throw new Error("Too many redirects");
 }

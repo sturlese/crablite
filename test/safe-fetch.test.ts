@@ -53,6 +53,45 @@ describe("safeFetchText SSRF guard", () => {
     expect(isPrivateIp("2001:4860:4860::8888")).toBe(false);
   });
 
+  it("aborts a stalled response body instead of hanging (timeout covers the body read)", async () => {
+    // A server that returns headers, sends a little, then stalls the body forever.
+    // The mock wires the abort signal to error the stream — the load-bearing
+    // platform behavior this assumes is that undici errors the body stream on abort
+    // so a pending reader.read() rejects (which it does on Node >= 20).
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+        const signal = init.signal ?? undefined;
+        const body = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode("partial"));
+            signal?.addEventListener("abort", () =>
+              controller.error(new DOMException("aborted", "AbortError")),
+            );
+            // Never close and never enqueue again: the next read stalls until abort.
+          },
+        });
+        return Promise.resolve({ ok: true, status: 200, headers: new Headers(), body });
+      }),
+    );
+
+    // Without the fix, the timer is cleared once headers arrive and readCapped
+    // hangs; the race marker would win. With the fix, the 50ms deadline covers the
+    // body read and rejects it well before the marker.
+    let markerId: ReturnType<typeof setTimeout> | undefined;
+    const outcome = await Promise.race([
+      safeFetchText("http://8.8.8.8/", { timeoutMs: 50 }).then(
+        () => "resolved",
+        (e) => `rejected:${(e as Error).name}`,
+      ),
+      new Promise<string>((r) => {
+        markerId = setTimeout(() => r("HUNG"), 2000);
+      }),
+    ]);
+    clearTimeout(markerId);
+    expect(outcome).toBe("rejected:AbortError");
+  });
+
   it("re-validates the target of a redirect", async () => {
     vi.stubGlobal(
       "fetch",
