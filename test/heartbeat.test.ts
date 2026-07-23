@@ -321,4 +321,41 @@ describe("heartbeat at-least-once delivery", () => {
     await expect(drain).resolves.toBe(true);
     expect(readStoredReminders()[0]!.delivered).toBe(true); // confirmed BEFORE the drain settled
   });
+
+  it("does not re-send when the confirm store-write fails after a successful send", async () => {
+    vi.useFakeTimers();
+    dir = tmpState();
+    ensureStateDirs();
+    addReminder({ text: "pay rent", dueAt: Date.now() - 1000, chatId: "a@s", chatType: "direct" });
+    const tmpPath = `${paths.remindersFile()}.tmp`;
+    // The rich turn succeeds, then makes the confirm store-write fail — deterministically
+    // and independent of user/OS permissions: pre-create writeJsonFileAtomic's temp path
+    // as a DIRECTORY so its writeFileSync hits EISDIR (even root can't write a directory).
+    // The claim already persisted (before this mock ran) and the send lands, so the
+    // confirm error must NOT be mistaken for a delivery failure and re-sent — it must
+    // propagate to the caller's loop catch.
+    vi.mocked(runTurn).mockImplementation(async () => {
+      fs.mkdirSync(tmpPath);
+      return { silent: false, replyText: "here is your reminder" };
+    });
+    const sends: string[] = [];
+    const send = async (_chatId: string, text: string) => {
+      sends.push(text);
+    };
+    const errorSpy = vi.spyOn(log, "error");
+    const stop = startHeartbeat({ id: "whatsapp", send });
+
+    await vi.advanceTimersByTimeAsync(10_000); // claim ok, turn ok, send ok, confirm throws EISDIR
+
+    // Delivered exactly once, and it was the rich reply — not a duplicate fallback.
+    expect(sends).toEqual(["here is your reminder"]);
+    // The confirm error propagated (per the docblock); the already-delivered reminder
+    // was not falsely abandoned.
+    const abandonments = errorSpy.mock.calls.filter((c) => String(c[0]).includes("abandoned"));
+    expect(abandonments).toHaveLength(0);
+    expect(readStoredReminders()[0]!.abandonedAt).toBeUndefined();
+
+    errorSpy.mockRestore();
+    stop();
+  });
 });

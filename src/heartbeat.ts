@@ -127,6 +127,7 @@ async function deliverReminder(channel: HeartbeatChannel, r: Reminder): Promise<
   // promise must not be delivered.
   const claimed = claimReminder(r.id);
   if (!claimed) return;
+  let sent = false;
   try {
     const res = await runTurn({
       sessionKey: sessionKeyFor(channel.id, claimed.chatType, claimed.chatId),
@@ -141,13 +142,13 @@ async function deliverReminder(channel: HeartbeatChannel, r: Reminder): Promise<
     });
     if (!res.silent && res.replyText) await channel.send(claimed.chatId, res.replyText);
     else if (res.silent) await channel.send(claimed.chatId, `⏰ ${claimed.text}`); // ensure the reminder lands
-    markDelivered(claimed.id);
+    sent = true;
   } catch (err) {
     log.error("Reminder delivery failed:", err instanceof Error ? err.message : String(err));
     // Fall back to a plain reminder so it isn't silently lost.
     try {
       await channel.send(claimed.chatId, `⏰ Reminder: ${claimed.text}`);
-      markDelivered(claimed.id);
+      sent = true;
     } catch {
       // Do NOT confirm: the persisted claim keeps it out of the next ticks and
       // retries it once stale — unless this was the final allowed attempt, in
@@ -157,6 +158,11 @@ async function deliverReminder(channel: HeartbeatChannel, r: Reminder): Promise<
       }
     }
   }
+  // Confirm only after a successful send, and OUTSIDE the delivery try: a confirm
+  // store-write error (ENOSPC/EACCES) must propagate to the caller's loop catch
+  // (per this function's contract), not be caught above and mistaken for a
+  // delivery failure — which would re-send the reminder a second time in one tick.
+  if (sent) markDelivered(claimed.id);
 }
 
 /** Log abandonments: ids and counts at error level; reminder text is user content and stays at debug (PII posture). */
