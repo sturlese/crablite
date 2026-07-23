@@ -67,6 +67,44 @@ describe("dreaming (self-learning)", () => {
     expect(memoryText()).toContain("cat sleeps");
   });
 
+  it("compaction keeps user content when MEMORY.md contains the heading text in a comment", async () => {
+    dir = tmpState();
+    seedWorkspace();
+    const memoryPath = path.join(paths.workspace(), "MEMORY.md");
+    // The seeded template quotes the promotion heading inside an HTML comment.
+    // A user note sits after it, then a large old promotion section that is the
+    // legitimate eviction target once a new promotion tips the file over budget.
+    fs.writeFileSync(
+      memoryPath,
+      "# MEMORY\n\n" +
+        '<!-- Promoted memories will be appended below under dated "## Promoted From Short-Term Memory" sections. -->\n\n' +
+        "USER-NOTE-KEEP-ME: my bank is Revolut.\n\n" +
+        "## Promoted From Short-Term Memory (2026-07-01)\n\n" +
+        `- OLD-FILLER ${"z".repeat(9800)} <!-- crablite-promotion:0000000a -->\n`,
+    );
+    fs.writeFileSync(
+      path.join(paths.memoryDir(), "2026-07-09.md"),
+      "# d\n\nThe cat sleeps a lot.\n",
+    );
+    seedRecall("The cat sleeps a lot.", "memory/2026-07-09.md:3-3", 3);
+
+    const res = await runDreaming();
+    const mem = memoryText();
+
+    // The old promotion section is the correct eviction target — compaction ran.
+    expect(mem).not.toContain("OLD-FILLER");
+    // The new promotion landed and survived.
+    expect(res.promoted).toBe(1);
+    expect(mem).toContain("cat sleeps");
+    // The user's hand-written note and the template comment must survive: the
+    // unanchored match used to cut mid-comment and evict everything after it.
+    expect(mem).toContain("USER-NOTE-KEEP-ME");
+    expect(mem).toContain("sections. -->");
+    // No unterminated comment: the buggy cut left a dangling `<!--` that swallowed
+    // the rest of the file. Every opener must still have its closer.
+    expect((mem.match(/<!--/g) ?? []).length).toBe((mem.match(/-->/g) ?? []).length);
+  });
+
   it("does not promote below the gates", async () => {
     dir = tmpState();
     seedWorkspace();
